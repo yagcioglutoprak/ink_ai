@@ -1,6 +1,7 @@
 """
 Flask server — /api/chat streaming endpoint + conversation CRUD.
 Supports any Anthropic-compatible API via ANTHROPIC_BASE_URL.
+Phase 4: Tool calls with Exa web search.
 """
 
 import os
@@ -52,6 +53,69 @@ def format_messages(messages: list[dict]) -> list[dict]:
     return formatted
 
 
+# ── Tool definitions ────────────────────────────────────
+
+WEB_SEARCH_TOOL = {
+    'name': 'web_search',
+    'description': (
+        'Search the web for current information. Use this when the user asks about '
+        'recent events, needs up-to-date data, wants to look something up, or when '
+        'your knowledge might be outdated. Returns titles, URLs, and text snippets.'
+    ),
+    'input_schema': {
+        'type': 'object',
+        'properties': {
+            'query': {
+                'type': 'string',
+                'description': 'The search query to look up on the web.',
+            },
+        },
+        'required': ['query'],
+    },
+}
+
+TOOLS = [WEB_SEARCH_TOOL]
+
+
+def execute_tool(tool_name: str, tool_input: dict) -> dict:
+    """Execute a tool call and return the result."""
+    if tool_name == 'web_search':
+        return execute_web_search(tool_input.get('query', ''))
+    return {'error': f'Unknown tool: {tool_name}'}
+
+
+def execute_web_search(query: str) -> dict:
+    """Execute a web search using the Exa API."""
+    api_key = os.environ.get('EXA_API_KEY')
+    if not api_key:
+        return {'error': 'EXA_API_KEY not configured'}
+
+    try:
+        from exa_py import Exa
+        exa = Exa(api_key=api_key)
+        results = exa.search(
+            query=query,
+            type='auto',
+            num_results=8,
+            contents={'text': {'max_characters': 3000}},
+        )
+        search_results = []
+        for r in results.results:
+            search_results.append({
+                'title': r.title or '',
+                'url': r.url or '',
+                'snippet': (r.text or '')[:400],
+            })
+        return {
+            'query': query,
+            'results': search_results,
+            'count': len(search_results),
+        }
+    except Exception as e:
+        logger.exception('Exa search error')
+        return {'error': str(e), 'query': query}
+
+
 # ── POST /api/chat — SSE streaming ─────────────────────
 
 @app.route('/api/chat', methods=['POST'])
@@ -61,6 +125,7 @@ def chat():
     model = data.get('model', os.environ.get('MODEL', 'claude-sonnet-4-20250514'))
     enable_thinking = data.get('thinking',
                                os.environ.get('ENABLE_THINKING', 'false').lower() == 'true')
+    enable_tools = data.get('tools', False)
     conversation_id = data.get('conversationId')
 
     if not messages:
@@ -74,6 +139,9 @@ def chat():
         full_thinking = ''
         full_text = ''
 
+        # Track tool calls during streaming
+        tool_calls: dict[int, dict] = {}
+
         try:
             params: dict = {
                 'model': model,
@@ -82,7 +150,15 @@ def chat():
                 'stream': True,
             }
 
-            system_prompt = os.environ.get('SYSTEM_PROMPT')
+            system_prompt = os.environ.get('SYSTEM_PROMPT', '')
+            if enable_tools:
+                system_prompt = (system_prompt + '\n\n' if system_prompt else '') + (
+                    'You have access to a web_search tool. Use it when the user asks about '
+                    'recent events, needs current data, or when your knowledge may be outdated. '
+                    'Always cite your sources with URLs when using search results.'
+                )
+                params['tools'] = TOOLS
+
             if system_prompt:
                 params['system'] = system_prompt
 
@@ -93,39 +169,147 @@ def chat():
                 }
                 params['max_tokens'] = max(params['max_tokens'], 16000)
 
-            stream = client.messages.create(**params)
+            api_messages = format_messages(messages)
+            params['messages'] = api_messages
 
-            for event in stream:
-                if event.type == 'content_block_start':
-                    block = event.content_block
-                    block_types[event.index] = block.type
-                    if block.type == 'thinking':
-                        thinking_start_time = time.time()
-                        full_thinking = ''
-                        yield sse({'type': 'thinking_start'})
-                    elif block.type == 'text':
-                        yield sse({'type': 'text_start'})
+            # Loop to handle tool use → result → continuation
+            while True:
+                params['messages'] = api_messages
+                stream = client.messages.create(**params)
 
-                elif event.type == 'content_block_delta':
-                    delta = event.delta
-                    if delta.type == 'thinking_delta':
-                        full_thinking += delta.thinking
-                        yield sse({'type': 'thinking_delta', 'content': delta.thinking})
-                    elif delta.type == 'text_delta':
-                        full_text += delta.text
-                        yield sse({'type': 'text_delta', 'content': delta.text})
+                stop_reason = None
+                current_tool_use_block: dict | None = None
+                response_content: list[dict] = []
 
-                elif event.type == 'content_block_stop':
-                    btype = block_types.get(event.index)
-                    if btype == 'thinking' and thinking_start_time is not None:
-                        duration = int((time.time() - thinking_start_time) * 1000)
-                        yield sse({'type': 'thinking_end', 'durationMs': duration})
-                        thinking_start_time = None
-                    elif btype == 'text':
-                        yield sse({'type': 'text_end'})
+                for event in stream:
+                    if event.type == 'content_block_start':
+                        block = event.content_block
+                        block_types[event.index] = block.type
 
-                elif event.type == 'message_stop':
+                        if block.type == 'thinking':
+                            thinking_start_time = time.time()
+                            full_thinking = ''
+                            yield sse({'type': 'thinking_start'})
+
+                        elif block.type == 'text':
+                            yield sse({'type': 'text_start'})
+
+                        elif block.type == 'tool_use':
+                            current_tool_use_block = {
+                                'id': block.id,
+                                'name': block.name,
+                                'input_json': '',
+                            }
+                            tool_calls[event.index] = current_tool_use_block
+
+                    elif event.type == 'content_block_delta':
+                        delta = event.delta
+                        if delta.type == 'thinking_delta':
+                            full_thinking += delta.thinking
+                            yield sse({'type': 'thinking_delta', 'content': delta.thinking})
+                        elif delta.type == 'text_delta':
+                            full_text += delta.text
+                            yield sse({'type': 'text_delta', 'content': delta.text})
+                        elif delta.type == 'input_json_delta':
+                            tc = tool_calls.get(event.index)
+                            if tc:
+                                tc['input_json'] += delta.partial_json
+
+                    elif event.type == 'content_block_stop':
+                        btype = block_types.get(event.index)
+
+                        if btype == 'thinking' and thinking_start_time is not None:
+                            duration = int((time.time() - thinking_start_time) * 1000)
+                            yield sse({'type': 'thinking_end', 'durationMs': duration})
+                            thinking_start_time = None
+                            response_content.append({
+                                'type': 'thinking',
+                                'thinking': full_thinking,
+                            })
+
+                        elif btype == 'text':
+                            yield sse({'type': 'text_end'})
+                            response_content.append({
+                                'type': 'text',
+                                'text': full_text,
+                            })
+
+                        elif btype == 'tool_use':
+                            tc = tool_calls.get(event.index)
+                            if tc:
+                                try:
+                                    tool_input = json.loads(tc['input_json']) if tc['input_json'] else {}
+                                except json.JSONDecodeError:
+                                    tool_input = {}
+
+                                yield sse({
+                                    'type': 'tool_call_start',
+                                    'id': tc['id'],
+                                    'toolName': tc['name'],
+                                    'args': tool_input,
+                                })
+
+                                response_content.append({
+                                    'type': 'tool_use',
+                                    'id': tc['id'],
+                                    'name': tc['name'],
+                                    'input': tool_input,
+                                })
+
+                                # Execute the tool
+                                start_time = time.time()
+                                result = execute_tool(tc['name'], tool_input)
+                                duration = int((time.time() - start_time) * 1000)
+
+                                if 'error' in result and not result.get('results'):
+                                    yield sse({
+                                        'type': 'tool_call_error',
+                                        'id': tc['id'],
+                                        'error': result['error'],
+                                        'durationMs': duration,
+                                    })
+                                else:
+                                    yield sse({
+                                        'type': 'tool_call_result',
+                                        'id': tc['id'],
+                                        'result': result,
+                                        'durationMs': duration,
+                                    })
+
+                    elif event.type == 'message_delta':
+                        stop_reason = event.delta.stop_reason
+
+                    elif event.type == 'message_stop':
+                        pass
+
+                # If the model stopped because it wants to use a tool, continue the loop
+                if stop_reason == 'tool_use':
+                    # Build tool results for all tool calls in this turn
+                    tool_result_content = []
+                    for tc in tool_calls.values():
+                        try:
+                            tool_input = json.loads(tc['input_json']) if tc['input_json'] else {}
+                        except json.JSONDecodeError:
+                            tool_input = {}
+                        result = execute_tool(tc['name'], tool_input)
+                        tool_result_content.append({
+                            'type': 'tool_result',
+                            'tool_use_id': tc['id'],
+                            'content': json.dumps(result),
+                        })
+
+                    api_messages.append({'role': 'assistant', 'content': response_content})
+                    api_messages.append({'role': 'user', 'content': tool_result_content})
+
+                    # Reset state for next iteration
+                    block_types = {}
+                    tool_calls = {}
+                    full_text = ''
+                    response_content = []
+                    continue
+                else:
                     yield sse({'type': 'done'})
+                    break
 
             # Persist assistant response to DB
             if db and conversation_id:
@@ -218,6 +402,7 @@ def health():
         'status': 'ok',
         'db': db is not None,
         'model': os.environ.get('MODEL', 'claude-sonnet-4-20250514'),
+        'exa': bool(os.environ.get('EXA_API_KEY')),
     })
 
 

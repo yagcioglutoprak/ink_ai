@@ -15,13 +15,26 @@ export interface TextBlock {
   content: string
 }
 
+export interface WebSearchResult {
+  title: string
+  url: string
+  snippet: string
+}
+
+export interface WebSearchData {
+  query: string
+  results: WebSearchResult[]
+  count: number
+}
+
 export interface ToolCallBlock {
   type: 'tool_call'
   id: string
   toolName: string
   args: Record<string, unknown>
-  status: 'running' | 'success' | 'error'
-  result?: unknown
+  status: 'pending' | 'running' | 'success' | 'error'
+  result?: WebSearchData | Record<string, unknown>
+  error?: string
   durationMs?: number
 }
 

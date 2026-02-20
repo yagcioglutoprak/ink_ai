@@ -8,18 +8,27 @@ export interface StreamEvent {
     | 'text_start'
     | 'text_delta'
     | 'text_end'
+    | 'tool_call_start'
+    | 'tool_call_result'
+    | 'tool_call_error'
     | 'done'
     | 'error'
   content?: string
   durationMs?: number
   error?: string
   retryAfter?: number
+  // Tool call fields
+  id?: string
+  toolName?: string
+  args?: Record<string, unknown>
+  result?: unknown
 }
 
 interface ChatRequest {
   messages: Array<{ role: string; content: string }>
   model?: string
   thinking?: boolean
+  tools?: boolean
   conversationId?: string
 }
 
