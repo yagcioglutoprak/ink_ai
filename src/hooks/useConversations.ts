@@ -239,7 +239,66 @@ toolDemoConv.messages = TOOL_DEMO_MESSAGES
 toolDemoConv.updatedAt = Date.now() - 40_000
 toolDemoConv.title = 'Web Search — Demo'
 
+/* ── Artifact demo ──────────────────────────────────────── */
+const artifactDemoConv = makeConversation('Artifact Demo')
+
+const ARTIFACT_CODE = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'DM Mono', monospace; background: #FFFCF0; padding: 24px; }
+    h1 { font-family: 'Bebas Neue', sans-serif; font-size: 48px; letter-spacing: 0.04em; margin-bottom: 16px; }
+    .card { background: #fff; border: 2px solid #000; box-shadow: 3px 3px 0 #000; padding: 16px; margin-bottom: 12px; }
+    .card:hover { transform: translate(-2px, -2px); box-shadow: 5px 5px 0 #000; transition: all 0.1s; }
+    .btn { background: #FFE500; border: 2px solid #000; box-shadow: 2px 2px 0 #000; padding: 8px 16px; font-family: 'DM Mono', monospace; font-size: 13px; cursor: pointer; }
+    .btn:active { transform: translate(2px, 2px); box-shadow: none; }
+    .counter { font-size: 64px; font-family: 'Bebas Neue', sans-serif; text-align: center; padding: 24px; }
+  </style>
+</head>
+<body>
+  <h1>BRUTALIST COUNTER</h1>
+  <div class="card">
+    <div class="counter" id="count">0</div>
+  </div>
+  <div style="display: flex; gap: 8px;">
+    <button class="btn" onclick="update(-1)">- MINUS</button>
+    <button class="btn" onclick="update(1)">+ PLUS</button>
+    <button class="btn" onclick="reset()" style="background: #FF3B3B; color: #fff;">RESET</button>
+  </div>
+  <script>
+    let count = 0;
+    const el = document.getElementById('count');
+    function update(n) { count += n; el.textContent = count; console.log('Count:', count); }
+    function reset() { count = 0; el.textContent = count; console.log('Reset!'); }
+  </script>
+</body>
+</html>`
+
+const ARTIFACT_DEMO_MESSAGES: Message[] = [
+  {
+    id: uid(),
+    role: 'user',
+    content: 'Build me a simple counter app in HTML',
+    status: 'done',
+    createdAt: Date.now() - 30_000,
+  },
+  {
+    id: uid(),
+    role: 'assistant',
+    content: 'Here is a brutalist counter app. Click the **OPEN** button on the code block to view it in the artifact panel with a live preview:\n\n```html\n' + ARTIFACT_CODE + '\n```\n\nThe counter features increment, decrement, and reset buttons with the neo-brutalist design system.',
+    status: 'done',
+    createdAt: Date.now() - 28_000,
+  },
+]
+
+artifactDemoConv.messages = ARTIFACT_DEMO_MESSAGES
+artifactDemoConv.updatedAt = Date.now() - 25_000
+artifactDemoConv.title = 'Artifact Demo — Counter'
+
 const SEED_CONVERSATIONS: Conversation[] = [
+  artifactDemoConv,
   toolDemoConv,
   demoConv,
   { ...makeConversation('Build a landing page'), messages: [], updatedAt: Date.now() - 60_000 },
