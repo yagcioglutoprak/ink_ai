@@ -296,12 +296,11 @@ function ArtifactCard({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.15 }}
       style={{
-        display: 'flex',
+        display: 'inline-flex',
         alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: 12,
+        gap: 10,
         margin: '8px 0',
-        padding: '10px 14px',
+        padding: '8px 12px',
         background: '#0A0A0A',
         border: '2px solid #000',
         boxShadow: '3px 3px 0 #FFE500',
