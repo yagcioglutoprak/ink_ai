@@ -116,7 +116,7 @@ export default function PreviewTab({ artifact, onConsoleLog }: PreviewTabProps) 
     parent.postMessage({type:'error',message:String(msg)},'*');
   };
 })();
-<\/script>`
+${"<"}/script>`
 
   // Inject console capture before </head> or at the start
   let previewHTML = rawHTML

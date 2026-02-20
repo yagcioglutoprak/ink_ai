@@ -141,7 +141,7 @@ export function buildPreviewHTML(code: string, type: Artifact['type']): string {
 <html><head><meta charset="UTF-8">
 <style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:'DM Mono',monospace;padding:16px;background:#FFFCF0;color:#0A0A0A}</style>
 </head><body><div id="root"></div>
-<script>${code}<\/script>
+<script>${code}${"<"}/script>
 </body></html>`
   }
 
