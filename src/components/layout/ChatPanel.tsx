@@ -12,6 +12,7 @@ interface ChatPanelProps {
   onSend: (text: string, options?: { webSearch?: boolean }) => void
   onStop: () => void
   onRegenerate: (messageId: string) => void
+  onOpenArtifact?: (lang: string, code: string, title: string) => void
   isStreaming: boolean
 }
 
@@ -21,6 +22,7 @@ export default function ChatPanel({
   onSend,
   onStop,
   onRegenerate,
+  onOpenArtifact,
   isStreaming,
 }: ChatPanelProps) {
   const handleSuggestion = useCallback((text: string) => onSend(text, {}), [onSend])
@@ -51,6 +53,7 @@ export default function ChatPanel({
           messages={conversation.messages}
           accentColor={conversation.accentColor}
           onRegenerate={onRegenerate}
+          onOpenArtifact={onOpenArtifact}
         />
       )}
 

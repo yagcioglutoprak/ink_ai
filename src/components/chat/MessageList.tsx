@@ -9,9 +9,10 @@ interface MessageListProps {
   messages: Message[]
   accentColor?: string
   onRegenerate?: (messageId: string) => void
+  onOpenArtifact?: (lang: string, code: string, title: string) => void
 }
 
-export default function MessageList({ messages, accentColor, onRegenerate }: MessageListProps) {
+export default function MessageList({ messages, accentColor, onRegenerate, onOpenArtifact }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const [showJump, setShowJump] = useState(false)
@@ -65,6 +66,7 @@ export default function MessageList({ messages, accentColor, onRegenerate }: Mes
                   ? () => onRegenerate(msg.id)
                   : undefined
               }
+              onOpenArtifact={msg.role === 'assistant' ? onOpenArtifact : undefined}
             />
           ))}
         </AnimatePresence>

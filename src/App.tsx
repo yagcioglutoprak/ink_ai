@@ -2,9 +2,12 @@ import { useState, useCallback, useRef } from 'react'
 import { AnimatePresence } from 'framer-motion'
 import './styles/globals.css'
 import { useConversations } from './hooks/useConversations'
+import { useArtifacts } from './hooks/useArtifacts'
 import { streamChat } from './lib/api'
+import { normaliseLang } from './lib/artifacts'
 import Sidebar from './components/layout/Sidebar'
 import ChatPanel from './components/layout/ChatPanel'
+import ArtifactPanel from './components/layout/ArtifactPanel'
 import type { Message, ContentBlock, ToolCallBlock } from './types'
 
 function uid() {
@@ -27,6 +30,16 @@ export default function App() {
     resetMessage,
     deleteConversation,
   } = useConversations()
+
+  const {
+    artifacts,
+    activeArtifact,
+    panelOpen,
+    addArtifact,
+    selectArtifact,
+    closePanel: closeArtifactPanel,
+    getConversationArtifacts,
+  } = useArtifacts()
 
   /* ── Stream AI response via /api/chat SSE ────────────── */
   const streamResponse = useCallback(
@@ -234,6 +247,26 @@ export default function App() {
     abortRef.current?.abort()
   }, [])
 
+  /* ── Open a code block as an artifact ─────────────── */
+  const handleOpenArtifact = useCallback(
+    (lang: string, code: string, title: string) => {
+      const convId = activeId ?? 'unknown'
+      addArtifact({
+        id: `artifact-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        conversationId: convId,
+        messageId: '',
+        type: normaliseLang(lang),
+        title,
+        code,
+        version: 1,
+        createdAt: Date.now(),
+      })
+    },
+    [activeId, addArtifact],
+  )
+
+  const conversationArtifacts = activeId ? getConversationArtifacts(activeId) : []
+
   return (
     <div
       className="mesh-bg"
@@ -266,12 +299,20 @@ export default function App() {
         onSend={handleSend}
         onStop={handleStop}
         onRegenerate={handleRegenerate}
+        onOpenArtifact={handleOpenArtifact}
         isStreaming={isStreaming}
       />
 
-      {/* Artifact panel placeholder (Phase 5) */}
+      {/* Artifact panel (right side drawer) */}
       <AnimatePresence>
-        {/* will render here */}
+        {panelOpen && activeArtifact && (
+          <ArtifactPanel
+            artifact={activeArtifact}
+            allArtifacts={conversationArtifacts}
+            onClose={closeArtifactPanel}
+            onSelectArtifact={selectArtifact}
+          />
+        )}
       </AnimatePresence>
     </div>
   )

@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { motion } from 'framer-motion'
-import { Copy, Check, RefreshCw, AlertCircle } from 'lucide-react'
+import { Copy, Check, RefreshCw, AlertCircle, Code2 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { springs, shadows } from '../../lib/theme'
+import { parseCodeBlocks, langLabel, normaliseLang } from '../../lib/artifacts'
 import type { Message, GenerativeUIBlock, ThinkingBlock as ThinkingBlockType, ToolCallBlock as ToolCallBlockType } from '../../types'
 import GenerativeUIRenderer from '../generative-ui/GenerativeUIRenderer'
 import ThinkingBlock from './ThinkingBlock'
@@ -13,13 +14,14 @@ interface MessageBubbleProps {
   message: Message
   accentColor?: string
   onRegenerate?: () => void
+  onOpenArtifact?: (lang: string, code: string, title: string) => void
 }
 
 function formatTime(ts: number): string {
   return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
-export default function MessageBubble({ message, accentColor = '#FFE500', onRegenerate }: MessageBubbleProps) {
+export default function MessageBubble({ message, accentColor = '#FFE500', onRegenerate, onOpenArtifact }: MessageBubbleProps) {
   const [copied, setCopied] = useState(false)
   const [showActions, setShowActions] = useState(false)
 
@@ -182,7 +184,55 @@ export default function MessageBubble({ message, accentColor = '#FFE500', onRege
               message.content
             ) : (
               <div className="md-content">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={onOpenArtifact ? {
+                    pre({ children }) {
+                      return <div style={{ position: 'relative' }}>{children}</div>
+                    },
+                    code({ className, children }) {
+                      const match = /language-(\w+)/.exec(className ?? '')
+                      const lang = match?.[1] ?? ''
+                      const codeStr = String(children).replace(/\n$/, '')
+
+                      if (!match || codeStr.length < 10) {
+                        return <code className={className}>{children}</code>
+                      }
+
+                      return (
+                        <div style={{ position: 'relative' }}>
+                          <code className={className}>{children}</code>
+                          <motion.button
+                            whileHover={{ x: -1, y: -1, boxShadow: shadows.sm }}
+                            whileTap={{ x: 1, y: 1, boxShadow: 'none' }}
+                            transition={{ duration: 0.07 }}
+                            onClick={() => onOpenArtifact(lang, codeStr, `${langLabel(normaliseLang(lang))} snippet`)}
+                            style={{
+                              position: 'absolute',
+                              top: 6,
+                              right: 6,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 4,
+                              padding: '3px 8px',
+                              background: '#FFE500',
+                              border: '1.5px solid #000',
+                              color: '#000',
+                              fontFamily: 'var(--font-mono)',
+                              fontSize: 9,
+                              letterSpacing: '0.06em',
+                              cursor: 'pointer',
+                              zIndex: 2,
+                            }}
+                          >
+                            <Code2 size={9} />
+                            OPEN
+                          </motion.button>
+                        </div>
+                      )
+                    },
+                  } : undefined}
+                >
                   {message.content}
                 </ReactMarkdown>
                 {/* Streaming cursor */}
