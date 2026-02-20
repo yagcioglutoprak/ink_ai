@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { Copy, Check, RefreshCw, AlertCircle } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { springs, shadows } from '../../lib/theme'
 import type { Message, GenerativeUIBlock, ThinkingBlock as ThinkingBlockType } from '../../types'
 import GenerativeUIRenderer from '../generative-ui/GenerativeUIRenderer'
@@ -117,7 +119,7 @@ export default function MessageBubble({ message, accentColor = '#FFE500', onRege
             fontSize: 14,
             lineHeight: 1.7,
             wordBreak: 'break-word',
-            whiteSpace: 'pre-wrap',
+            whiteSpace: isUser ? 'pre-wrap' : undefined,
             position: 'relative',
           }}
         >
@@ -162,21 +164,30 @@ export default function MessageBubble({ message, accentColor = '#FFE500', onRege
           )}
 
           {/* Normal content */}
-          {!isPending && !isError && message.content}
-
-          {/* Streaming cursor */}
-          {isStreaming && message.content && (
-            <span
-              className="animate-cursor-blink"
-              style={{
-                display: 'inline-block',
-                width: 9,
-                height: '1em',
-                background: '#FFE500',
-                marginLeft: 3,
-                verticalAlign: 'text-bottom',
-              }}
-            />
+          {!isPending && !isError && message.content && (
+            isUser ? (
+              message.content
+            ) : (
+              <div className="md-content">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {message.content}
+                </ReactMarkdown>
+                {/* Streaming cursor */}
+                {isStreaming && (
+                  <span
+                    className="animate-cursor-blink"
+                    style={{
+                      display: 'inline-block',
+                      width: 9,
+                      height: '1em',
+                      background: '#FFE500',
+                      marginLeft: 3,
+                      verticalAlign: 'text-bottom',
+                    }}
+                  />
+                )}
+              </div>
+            )
           )}
         </motion.div>
 

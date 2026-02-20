@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Brain, ChevronDown } from 'lucide-react'
 import { springs, shadows } from '../../lib/theme'
@@ -10,7 +10,19 @@ interface ThinkingBlockProps {
 }
 
 export default function ThinkingBlock({ block, isStreaming }: ThinkingBlockProps) {
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(!!isStreaming)
+  const wasStreaming = useRef(isStreaming)
+
+  // Auto-open when thinking starts, auto-close when thinking finishes
+  useEffect(() => {
+    if (isStreaming && !wasStreaming.current) {
+      setExpanded(true)
+    }
+    if (!isStreaming && wasStreaming.current) {
+      setExpanded(false)
+    }
+    wasStreaming.current = isStreaming
+  }, [isStreaming])
 
   const durationLabel = block.durationMs
     ? block.durationMs >= 1000
@@ -108,7 +120,6 @@ export default function ThinkingBlock({ block, isStreaming }: ThinkingBlockProps
             >
               {block.content || (isStreaming ? '' : 'No thinking content.')}
 
-              {/* Streaming cursor */}
               {isStreaming && (
                 <span
                   className="animate-cursor-blink"
