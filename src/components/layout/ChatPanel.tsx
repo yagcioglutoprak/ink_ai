@@ -9,7 +9,7 @@ import EmptyState from '../chat/EmptyState'
 interface ChatPanelProps {
   conversation: Conversation | null
   sidebarOpen: boolean
-  onSend: (text: string) => void
+  onSend: (text: string, options?: { webSearch?: boolean }) => void
   onStop: () => void
   onRegenerate: (messageId: string) => void
   isStreaming: boolean
@@ -23,7 +23,7 @@ export default function ChatPanel({
   onRegenerate,
   isStreaming,
 }: ChatPanelProps) {
-  const handleSuggestion = useCallback((text: string) => onSend(text), [onSend])
+  const handleSuggestion = useCallback((text: string) => onSend(text, {}), [onSend])
 
   return (
     <motion.main

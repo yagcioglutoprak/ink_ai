@@ -4,7 +4,7 @@ import { ArrowUp, Square, Globe, Paperclip } from 'lucide-react'
 import { shadows } from '../../lib/theme'
 
 interface InputBarProps {
-  onSend: (text: string) => void
+  onSend: (text: string, options?: { webSearch?: boolean }) => void
   isStreaming: boolean
   onStop: () => void
   disabled?: boolean
@@ -37,9 +37,9 @@ export default function InputBar({ onSend, isStreaming, onStop, disabled }: Inpu
   const handleSend = useCallback(() => {
     const trimmed = value.trim()
     if (!trimmed || isStreaming || disabled) return
-    onSend(trimmed)
+    onSend(trimmed, { webSearch })
     setValue('')
-  }, [value, isStreaming, disabled, onSend])
+  }, [value, isStreaming, disabled, onSend, webSearch])
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {

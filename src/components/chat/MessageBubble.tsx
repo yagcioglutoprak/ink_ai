@@ -4,9 +4,10 @@ import { Copy, Check, RefreshCw, AlertCircle } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { springs, shadows } from '../../lib/theme'
-import type { Message, GenerativeUIBlock, ThinkingBlock as ThinkingBlockType } from '../../types'
+import type { Message, GenerativeUIBlock, ThinkingBlock as ThinkingBlockType, ToolCallBlock as ToolCallBlockType } from '../../types'
 import GenerativeUIRenderer from '../generative-ui/GenerativeUIRenderer'
 import ThinkingBlock from './ThinkingBlock'
+import ToolCallCard from './ToolCallCard'
 
 interface MessageBubbleProps {
   message: Message
@@ -30,6 +31,9 @@ export default function MessageBubble({ message, accentColor = '#FFE500', onRege
   // Extract blocks by type
   const thinkingBlocks = (message.blocks ?? []).filter(
     (b): b is ThinkingBlockType => b.type === 'thinking'
+  )
+  const toolCallBlocks = (message.blocks ?? []).filter(
+    (b): b is ToolCallBlockType => b.type === 'tool_call'
   )
   const uiBlocks = (message.blocks ?? []).filter(
     (b): b is GenerativeUIBlock => b.type === 'generative_ui'
@@ -93,6 +97,15 @@ export default function MessageBubble({ message, accentColor = '#FFE500', onRege
                 block={block}
                 isStreaming={isStreaming && !block.durationMs}
               />
+            ))}
+          </div>
+        )}
+
+        {/* Tool call cards (rendered before the bubble) */}
+        {!isUser && toolCallBlocks.length > 0 && (
+          <div style={{ width: '100%' }}>
+            {toolCallBlocks.map((block) => (
+              <ToolCallCard key={block.id} block={block} />
             ))}
           </div>
         )}

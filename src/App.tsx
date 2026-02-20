@@ -2,37 +2,19 @@ import { useState, useCallback, useRef } from 'react'
 import { AnimatePresence } from 'framer-motion'
 import './styles/globals.css'
 import { useConversations } from './hooks/useConversations'
+import { streamChat } from './lib/api'
 import Sidebar from './components/layout/Sidebar'
 import ChatPanel from './components/layout/ChatPanel'
-import type { Message, ContentBlock } from './types'
+import type { Message, ContentBlock, ToolCallBlock } from './types'
 
 function uid() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36)
-}
-
-/* ── Mock streaming data ────────────────────────────────── */
-const MOCK_THINKING = `The user is asking me a question. Let me reason through this carefully.
-
-I should consider multiple angles here and provide a thorough, well-structured answer. Let me think about what would be most helpful...
-
-I'll break my response into clear sections so it's easy to follow.`
-
-const MOCK_RESPONSES = [
-  `Great question! Here's what I think:\n\nThe key insight is that good software design comes from understanding the problem deeply before writing code. Start with the user's needs, then work backwards to the implementation.\n\nHere are three principles I'd recommend:\n\n1. **Keep it simple** — the best code is code you don't have to write\n2. **Make it readable** — you'll read code 10x more than you write it\n3. **Test the edges** — bugs hide where you least expect them`,
-  `I'd be happy to help with that!\n\nLet me walk you through the approach step by step:\n\n**First**, we need to understand the constraints. What are the hard requirements vs nice-to-haves?\n\n**Second**, let's look at existing patterns in the codebase. Consistency matters more than cleverness.\n\n**Third**, we prototype fast and iterate. Ship something small, learn from it, then improve.`,
-  `That's an interesting challenge. Here's how I'd approach it:\n\nThe fundamental trade-off here is between **flexibility** and **simplicity**. Too much abstraction makes things hard to understand. Too little makes things hard to change.\n\nMy recommendation: start concrete, then abstract only when you see the pattern repeated three times. This is sometimes called the "Rule of Three."\n\nWant me to show you a concrete example?`,
-  `Absolutely! Let me break this down:\n\n**The Problem:** You need a solution that scales but doesn't over-engineer things up front.\n\n**The Solution:** Use a layered architecture:\n- **Data layer** — handles persistence and queries\n- **Business logic** — pure functions, easy to test\n- **Presentation** — thin, delegates to business logic\n\nEach layer only talks to the one below it. This keeps dependencies clean and makes testing straightforward.`,
-]
-
-function delay(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms))
 }
 
 export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [isStreaming, setIsStreaming] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
-  const mockIndexRef = useRef(0)
 
   const {
     conversations,
@@ -46,59 +28,128 @@ export default function App() {
     deleteConversation,
   } = useConversations()
 
-  /* ── Mock-stream AI response into a message ──────────── */
+  /* ── Stream AI response via /api/chat SSE ────────────── */
   const streamResponse = useCallback(
     async (
       convId: string,
       aiMsgId: string,
-      _apiMessages: Array<{ role: string; content: string }>,
+      apiMessages: Array<{ role: string; content: string }>,
+      enableTools: boolean,
     ) => {
       setIsStreaming(true)
       abortRef.current = new AbortController()
       const signal = abortRef.current.signal
 
-      const responseText = MOCK_RESPONSES[mockIndexRef.current % MOCK_RESPONSES.length]
-      mockIndexRef.current++
-
       const blocks: ContentBlock[] = []
+      let fullText = ''
 
       try {
-        // Phase 1: Thinking (simulated)
         updateMessage(convId, aiMsgId, { status: 'streaming' })
-        blocks.push({ type: 'thinking', content: '' })
-        updateMessage(convId, aiMsgId, { blocks: [...blocks] })
 
-        let thinkingContent = ''
-        for (let i = 0; i < MOCK_THINKING.length; i += 4) {
-          if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
-          thinkingContent = MOCK_THINKING.slice(0, i + 4)
-          blocks[0] = { type: 'thinking', content: thinkingContent }
-          updateMessage(convId, aiMsgId, { blocks: [...blocks] })
-          await delay(12)
+        for await (const event of streamChat(
+          {
+            messages: apiMessages,
+            tools: enableTools,
+          },
+          signal,
+        )) {
+          switch (event.type) {
+            // ── Thinking ──────────────────────────────
+            case 'thinking_start':
+              blocks.push({ type: 'thinking', content: '' })
+              updateMessage(convId, aiMsgId, { blocks: [...blocks] })
+              break
+
+            case 'thinking_delta': {
+              const tb = blocks.findLast((b) => b.type === 'thinking')
+              if (tb && tb.type === 'thinking') {
+                tb.content += event.content ?? ''
+                updateMessage(convId, aiMsgId, { blocks: [...blocks] })
+              }
+              break
+            }
+
+            case 'thinking_end': {
+              const tb = blocks.findLast((b) => b.type === 'thinking')
+              if (tb && tb.type === 'thinking') {
+                tb.durationMs = event.durationMs
+                updateMessage(convId, aiMsgId, { blocks: [...blocks] })
+              }
+              break
+            }
+
+            // ── Text ──────────────────────────────────
+            case 'text_start':
+              break
+
+            case 'text_delta':
+              fullText += event.content ?? ''
+              updateMessage(convId, aiMsgId, { content: fullText })
+              break
+
+            case 'text_end':
+              break
+
+            // ── Tool calls ────────────────────────────
+            case 'tool_call_start': {
+              const tcBlock: ToolCallBlock = {
+                type: 'tool_call',
+                id: event.id!,
+                toolName: event.toolName!,
+                args: event.args ?? {},
+                status: 'running',
+              }
+              blocks.push(tcBlock)
+              updateMessage(convId, aiMsgId, { blocks: [...blocks] })
+              break
+            }
+
+            case 'tool_call_result': {
+              const tc = blocks.find(
+                (b): b is ToolCallBlock => b.type === 'tool_call' && b.id === event.id,
+              )
+              if (tc) {
+                tc.status = 'success'
+                tc.result = event.result as ToolCallBlock['result']
+                tc.durationMs = event.durationMs
+                updateMessage(convId, aiMsgId, { blocks: [...blocks] })
+              }
+              break
+            }
+
+            case 'tool_call_error': {
+              const tc = blocks.find(
+                (b): b is ToolCallBlock => b.type === 'tool_call' && b.id === event.id,
+              )
+              if (tc) {
+                tc.status = 'error'
+                tc.error = event.error
+                tc.durationMs = event.durationMs
+                updateMessage(convId, aiMsgId, { blocks: [...blocks] })
+              }
+              break
+            }
+
+            // ── Done / Error ──────────────────────────
+            case 'done':
+              updateMessage(convId, aiMsgId, {
+                content: fullText,
+                status: 'done',
+                blocks: [...blocks],
+              })
+              break
+
+            case 'error':
+              updateMessage(convId, aiMsgId, {
+                status: 'error',
+                content: event.error ?? 'Something went wrong.',
+              })
+              break
+          }
         }
-
-        // Thinking complete
-        blocks[0] = { type: 'thinking', content: MOCK_THINKING, durationMs: 1840 }
-        updateMessage(convId, aiMsgId, { blocks: [...blocks] })
-        await delay(200)
-
-        // Phase 2: Text streaming
-        let textContent = ''
-        for (let i = 0; i < responseText.length; i += 3) {
-          if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
-          textContent = responseText.slice(0, i + 3)
-          updateMessage(convId, aiMsgId, { content: textContent })
-          await delay(16)
-        }
-
-        updateMessage(convId, aiMsgId, {
-          content: responseText,
-          status: 'done',
-          blocks: [...blocks],
-        })
       } catch (err: unknown) {
         if (err instanceof DOMException && err.name === 'AbortError') {
-          updateMessage(convId, aiMsgId, { status: 'done' })
+          updateMessage(convId, aiMsgId, { status: 'done', content: fullText })
         } else {
           updateMessage(convId, aiMsgId, {
             status: 'error',
@@ -115,12 +166,14 @@ export default function App() {
 
   /* ── Send a message ───────────────────────────────── */
   const handleSend = useCallback(
-    async (text: string) => {
+    async (text: string, options?: { webSearch?: boolean }) => {
       let convId = activeId
       if (!convId) {
         const conv = createConversation()
         convId = conv.id
       }
+
+      const enableTools = options?.webSearch ?? false
 
       // Build API messages from current conversation
       const currentConv = conversations.find((c) => c.id === convId)
@@ -151,7 +204,7 @@ export default function App() {
       }
       addMessage(convId, aiMsg)
 
-      await streamResponse(convId, aiMsgId, apiMessages)
+      await streamResponse(convId, aiMsgId, apiMessages, enableTools)
     },
     [activeId, conversations, createConversation, addMessage, streamResponse],
   )
@@ -171,7 +224,7 @@ export default function App() {
         .map((m) => ({ role: m.role, content: m.content }))
 
       resetMessage(convId, messageId)
-      await streamResponse(convId, messageId, apiMessages)
+      await streamResponse(convId, messageId, apiMessages, false)
     },
     [activeConversation, isStreaming, resetMessage, streamResponse],
   )
