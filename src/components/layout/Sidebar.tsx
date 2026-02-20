@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, MessageSquare, Trash2, PanelLeftClose, PanelLeft } from 'lucide-react'
-import { springs, stagger } from '../../lib/theme'
+import { Plus, Trash2, PanelLeftClose, PanelLeft } from 'lucide-react'
+import { springs, stagger, shadows } from '../../lib/theme'
 import type { Conversation } from '../../types'
 
 interface SidebarProps {
@@ -47,8 +47,8 @@ export default function Sidebar({
             width: 280,
             minWidth: 280,
             height: '100%',
-            background: 'var(--color-surface)',
-            borderRight: '1.5px solid var(--color-border)',
+            background: '#FFFCF0',
+            borderRight: '3px solid #000',
             display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden',
@@ -61,83 +61,69 @@ export default function Sidebar({
           <div
             style={{
               padding: '20px 16px 16px',
-              borderBottom: '1.5px solid var(--color-border)',
+              borderBottom: '2px solid #000',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              gap: 8,
+              background: '#FFE500',
             }}
           >
-            {/* Logo */}
-            <div>
-              <span
-                style={{
-                  fontFamily: 'var(--font-display)',
-                  fontSize: 20,
-                  fontWeight: 700,
-                  letterSpacing: '-0.02em',
-                  color: 'var(--color-neon-lime)',
-                  textShadow: '0 0 20px rgba(200,255,0,0.5)',
-                }}
-              >
-                ink.ai
-              </span>
-            </div>
+            <span
+              style={{
+                fontFamily: 'var(--font-display)',
+                fontSize: 32,
+                fontWeight: 400,
+                letterSpacing: '0.04em',
+                color: '#000',
+                lineHeight: 1,
+              }}
+            >
+              INK.AI
+            </span>
 
-            {/* Collapse button */}
             <button
               onClick={onToggle}
               style={{
-                background: 'none',
-                border: 'none',
-                color: 'var(--color-muted)',
+                background: '#000',
+                border: '2px solid #000',
+                color: '#FFE500',
                 cursor: 'pointer',
-                padding: 6,
-                borderRadius: 'var(--radius-sm)',
+                padding: '4px 6px',
                 display: 'flex',
                 alignItems: 'center',
-                transition: 'color 0.15s, background 0.15s',
-              }}
-              onMouseEnter={(e) => {
-                ;(e.currentTarget as HTMLButtonElement).style.color = 'var(--color-text)'
-                ;(e.currentTarget as HTMLButtonElement).style.background = 'var(--color-surface-2)'
-              }}
-              onMouseLeave={(e) => {
-                ;(e.currentTarget as HTMLButtonElement).style.color = 'var(--color-muted)'
-                ;(e.currentTarget as HTMLButtonElement).style.background = 'none'
+                boxShadow: shadows.sm,
               }}
             >
-              <PanelLeftClose size={16} />
+              <PanelLeftClose size={14} />
             </button>
           </div>
 
           {/* ── New Chat Button ──────────────────────── */}
           <div style={{ padding: '12px 12px 8px' }}>
             <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.97 }}
-              transition={springs.quick}
+              whileHover={{ x: -2, y: -2, boxShadow: shadows.lg }}
+              whileTap={{ x: 2, y: 2, boxShadow: 'none' }}
+              transition={{ duration: 0.08 }}
               onClick={onCreate}
               style={{
                 width: '100%',
-                padding: '11px 16px',
-                background: 'var(--color-neon-lime)',
-                border: '2px solid var(--color-neon-lime)',
-                borderRadius: 'var(--radius-card)',
-                color: '#0D0D12',
+                padding: '12px 16px',
+                background: '#000',
+                border: '2px solid #000',
+                boxShadow: shadows.md,
+                color: '#FFE500',
                 fontFamily: 'var(--font-display)',
-                fontSize: 14,
-                fontWeight: 700,
-                letterSpacing: '-0.01em',
+                fontSize: 20,
+                fontWeight: 400,
+                letterSpacing: '0.08em',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
-                boxShadow: '0 0 20px rgba(200,255,0,0.3)',
               }}
             >
-              <Plus size={16} strokeWidth={2.5} />
-              New chat
+              <Plus size={16} strokeWidth={3} />
+              NEW CHAT
             </motion.button>
           </div>
 
@@ -149,7 +135,7 @@ export default function Sidebar({
               padding: '4px 8px 16px',
               display: 'flex',
               flexDirection: 'column',
-              gap: 2,
+              gap: 4,
             }}
           >
             {conversations.length === 0 && (
@@ -161,11 +147,13 @@ export default function Sidebar({
                   fontFamily: 'var(--font-mono)',
                   fontSize: 12,
                   lineHeight: 1.8,
+                  border: '2px dashed #999',
+                  margin: 8,
                 }}
               >
-                No conversations yet.
+                NO CONVERSATIONS YET.
                 <br />
-                Start a new chat above.
+                START A NEW CHAT ABOVE.
               </div>
             )}
 
@@ -196,12 +184,13 @@ export default function Sidebar({
           {/* ── Footer ──────────────────────────────── */}
           <div
             style={{
-              padding: '12px 16px',
-              borderTop: '1px solid var(--color-border)',
+              padding: '10px 16px',
+              borderTop: '2px solid #000',
               fontFamily: 'var(--font-mono)',
               fontSize: 10,
-              color: 'var(--color-faint)',
-              letterSpacing: '0.05em',
+              color: '#555',
+              letterSpacing: '0.1em',
+              textTransform: 'uppercase',
             }}
           >
             {conversations.length} conversation{conversations.length !== 1 ? 's' : ''}
@@ -209,7 +198,7 @@ export default function Sidebar({
         </motion.aside>
       )}
 
-      {/* ── Collapsed toggle button ──────────────────── */}
+      {/* ── Collapsed toggle ─────────────────────────── */}
       {!open && (
         <motion.button
           key="toggle"
@@ -223,10 +212,10 @@ export default function Sidebar({
             left: 12,
             top: 16,
             zIndex: 30,
-            background: 'var(--color-surface)',
-            border: '1.5px solid var(--color-border)',
-            borderRadius: 'var(--radius-sm)',
-            color: 'var(--color-muted)',
+            background: '#FFE500',
+            border: '2px solid #000',
+            boxShadow: shadows.sm,
+            color: '#000',
             cursor: 'pointer',
             padding: 8,
             display: 'flex',
@@ -275,39 +264,26 @@ function ConversationRow({
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       style={{
-        padding: '10px 12px',
-        borderRadius: 'var(--radius-sm)',
+        padding: '9px 10px',
         cursor: 'pointer',
         display: 'flex',
         alignItems: 'center',
-        gap: 10,
-        background: isActive
-          ? `${accent}14`
-          : isHovered
-          ? 'var(--color-surface-2)'
-          : 'transparent',
-        border: isActive ? `1px solid ${accent}33` : '1px solid transparent',
-        transition: 'background 0.15s, border-color 0.15s',
-        position: 'relative',
-        overflow: 'hidden',
+        gap: 8,
+        background: isActive ? accent : isHovered ? '#F5EFE0' : 'transparent',
+        border: isActive ? '2px solid #000' : '2px solid transparent',
+        boxShadow: isActive ? shadows.sm : 'none',
+        transition: 'background 0.1s, border-color 0.1s',
       }}
     >
-      {/* Accent dot */}
+      {/* Accent swatch */}
       <div
         style={{
-          width: 7,
-          height: 7,
-          borderRadius: '50%',
+          width: 10,
+          height: 10,
           background: accent,
+          border: '1.5px solid #000',
           flexShrink: 0,
-          boxShadow: isActive ? `0 0 8px ${accent}` : undefined,
         }}
-      />
-
-      {/* Icon */}
-      <MessageSquare
-        size={13}
-        style={{ color: isActive ? accent : 'var(--color-faint)', flexShrink: 0 }}
       />
 
       {/* Title */}
@@ -315,9 +291,9 @@ function ConversationRow({
         <div
           style={{
             fontFamily: 'var(--font-mono)',
-            fontSize: 12.5,
+            fontSize: 12,
             fontWeight: isActive ? 500 : 400,
-            color: isActive ? 'var(--color-text)' : 'var(--color-muted)',
+            color: '#000',
             whiteSpace: 'nowrap',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
@@ -329,15 +305,16 @@ function ConversationRow({
           style={{
             fontFamily: 'var(--font-mono)',
             fontSize: 10,
-            color: 'var(--color-faint)',
+            color: '#777',
             marginTop: 1,
+            letterSpacing: '0.05em',
           }}
         >
           {timeAgo(conversation.updatedAt)}
         </div>
       </div>
 
-      {/* Delete button */}
+      {/* Delete */}
       <AnimatePresence>
         {isHovered && (
           <motion.button
@@ -346,20 +323,19 @@ function ConversationRow({
             exit={{ opacity: 0, scale: 0.8 }}
             transition={springs.quick}
             onClick={onDelete}
-            title={isDeleteTarget ? 'Click again to confirm' : 'Delete'}
+            title={isDeleteTarget ? 'Confirm delete' : 'Delete'}
             style={{
-              background: isDeleteTarget ? 'rgba(255,79,94,0.2)' : 'none',
-              border: 'none',
-              color: isDeleteTarget ? 'var(--color-coral)' : 'var(--color-faint)',
+              background: isDeleteTarget ? '#FF3B3B' : 'transparent',
+              border: `1.5px solid ${isDeleteTarget ? '#FF3B3B' : '#000'}`,
+              color: isDeleteTarget ? '#fff' : '#000',
               cursor: 'pointer',
-              padding: 4,
-              borderRadius: 4,
+              padding: 3,
               display: 'flex',
               alignItems: 'center',
               flexShrink: 0,
             }}
           >
-            <Trash2 size={12} />
+            <Trash2 size={11} />
           </motion.button>
         )}
       </AnimatePresence>

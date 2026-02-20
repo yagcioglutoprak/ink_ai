@@ -21,11 +21,7 @@ export default function ChatPanel({
   onStop,
   isStreaming,
 }: ChatPanelProps) {
-
-  const handleSuggestion = useCallback(
-    (text: string) => onSend(text),
-    [onSend]
-  )
+  const handleSuggestion = useCallback((text: string) => onSend(text), [onSend])
 
   return (
     <motion.main
@@ -41,12 +37,11 @@ export default function ChatPanel({
         position: 'relative',
         paddingLeft: sidebarOpen ? 0 : 48,
         transition: 'padding-left 0.3s',
+        background: '#FFFCF0',
       }}
     >
-      {/* Header */}
       <ChatHeader conversation={conversation} />
 
-      {/* Messages or empty state */}
       {!conversation || conversation.messages.length === 0 ? (
         <EmptyState onSuggestion={handleSuggestion} />
       ) : (
@@ -56,7 +51,6 @@ export default function ChatPanel({
         />
       )}
 
-      {/* Input */}
       <InputBar
         onSend={onSend}
         onStop={onStop}
@@ -67,57 +61,57 @@ export default function ChatPanel({
   )
 }
 
-/* ── Chat header ──────────────────────────────────────── */
 function ChatHeader({ conversation }: { conversation: Conversation | null }) {
   return (
     <div
       style={{
-        padding: '16px 24px',
-        borderBottom: '1px solid var(--color-border)',
+        padding: '12px 20px',
+        borderBottom: '2px solid #000',
         flexShrink: 0,
         display: 'flex',
         alignItems: 'center',
-        gap: 12,
-        minHeight: 56,
+        gap: 10,
+        minHeight: 52,
+        background: '#fff',
       }}
     >
       {conversation ? (
         <>
           <div
             style={{
-              width: 9,
-              height: 9,
-              borderRadius: '50%',
+              width: 14,
+              height: 14,
               background: conversation.accentColor,
-              boxShadow: `0 0 8px ${conversation.accentColor}`,
+              border: '2px solid #000',
               flexShrink: 0,
             }}
           />
           <span
             style={{
               fontFamily: 'var(--font-display)',
-              fontSize: 15,
-              fontWeight: 600,
-              color: 'var(--color-text)',
-              letterSpacing: '-0.01em',
+              fontSize: 20,
+              fontWeight: 400,
+              letterSpacing: '0.04em',
+              color: '#000',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
             }}
           >
-            {conversation.title}
+            {conversation.title.toUpperCase()}
           </span>
         </>
       ) : (
         <span
           style={{
             fontFamily: 'var(--font-display)',
-            fontSize: 15,
-            fontWeight: 600,
-            color: 'var(--color-faint)',
+            fontSize: 20,
+            fontWeight: 400,
+            letterSpacing: '0.04em',
+            color: '#aaa',
           }}
         >
-          ink.ai
+          INK.AI
         </span>
       )}
     </div>

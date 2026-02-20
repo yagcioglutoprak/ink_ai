@@ -1,45 +1,41 @@
 /**
- * theme.ts — JS-side design tokens for Ink + Neon system
- * Mirrors CSS custom properties for use in Framer Motion,
- * dynamic styles, and component logic.
+ * theme.ts — Neo-Brutalist design tokens
  */
 
 export const colors = {
-  bg:        '#0D0D12',
-  surface:   '#14141C',
-  surface2:  '#1A1A26',
-  border:    '#2A2A3A',
-  border2:   '#3A3A52',
+  bg:        '#FFFCF0',
+  surface:   '#FFFFFF',
+  surface2:  '#F5EFE0',
+  border:    '#000000',
+  border2:   '#333333',
 
-  // Neon accents
-  neonLime:  '#C8FF00',
-  coral:     '#FF4F5E',
-  blue:      '#4FC3F7',
-  violet:    '#B57BFF',
-  amber:     '#FFB547',
+  // Flat vivid accents
+  yellow:    '#FFE500',
+  red:       '#FF3B3B',
+  blue:      '#0055FF',
+  green:     '#00CC44',
+  pink:      '#FF2D78',
 
-  // Text
-  text:      '#F0F0F8',
-  muted:     '#8888A0',
-  faint:     '#4A4A60',
+  // Aliases used in Phase 3+
+  neonLime:  '#FFE500',
+  coral:     '#FF3B3B',
+  violet:    '#7B2FFF',
+  amber:     '#FF8C00',
+
+  text:      '#0A0A0A',
+  muted:     '#555555',
+  faint:     '#999999',
 } as const
 
-export const glows = {
-  lime:   '0 0 20px rgba(200, 255, 0, 0.35), 0 0 60px rgba(200, 255, 0, 0.12)',
-  coral:  '0 0 20px rgba(255, 79, 94, 0.35),  0 0 60px rgba(255, 79, 94, 0.12)',
-  blue:   '0 0 20px rgba(79, 195, 247, 0.35), 0 0 60px rgba(79, 195, 247, 0.12)',
-  violet: '0 0 20px rgba(181, 123, 255, 0.35),0 0 60px rgba(181, 123, 255, 0.12)',
-} as const
-
-export const radius = {
-  bubble: 18,
-  card:   14,
-  sm:     8,
-  xs:     4,
+export const shadows = {
+  sm:  '2px 2px 0px #000000',
+  md:  '3px 3px 0px #000000',
+  lg:  '5px 5px 0px #000000',
+  xl:  '7px 7px 0px #000000',
 } as const
 
 export const fonts = {
-  display: "'Clash Display', sans-serif",
+  display: "'Bebas Neue', 'Clash Display', sans-serif",
   mono:    "'DM Mono', monospace",
 } as const
 
@@ -50,21 +46,18 @@ export const spacing = {
 
 /** Framer Motion spring presets */
 export const springs = {
-  /** Snappy, bouncy — for bubble entrance */
   bouncy: {
     type: 'spring' as const,
     stiffness: 400,
     damping: 22,
     mass: 0.8,
   },
-  /** Smooth, elegant — for panel slides */
   smooth: {
     type: 'spring' as const,
     stiffness: 280,
     damping: 32,
     mass: 1,
   },
-  /** Quick, no bounce — for micro-interactions */
   quick: {
     type: 'spring' as const,
     stiffness: 500,
@@ -73,23 +66,21 @@ export const springs = {
   },
 } as const
 
-/** Stagger delay helpers */
 export const stagger = {
   fast:   0.04,
   normal: 0.08,
   slow:   0.12,
 } as const
 
-/** Chat accent colors — one per conversation */
+/** Per-conversation accent fills — flat brutalist colors */
 export const conversationAccents = [
-  colors.neonLime,
-  colors.coral,
+  colors.yellow,
+  colors.red,
   colors.blue,
-  colors.violet,
-  colors.amber,
+  colors.green,
+  colors.pink,
 ] as const
 
-/** Get a deterministic accent color from a conversation ID */
 export function getConversationAccent(id: string): string {
   let hash = 0
   for (let i = 0; i < id.length; i++) {
@@ -97,3 +88,18 @@ export function getConversationAccent(id: string): string {
   }
   return conversationAccents[Math.abs(hash) % conversationAccents.length]
 }
+
+/** Glows — not used in brutalism, kept for Phase 3 compat */
+export const glows = {
+  lime:   'none',
+  coral:  'none',
+  blue:   'none',
+  violet: 'none',
+} as const
+
+export const radius = {
+  bubble: 0,
+  card:   0,
+  sm:     0,
+  xs:     0,
+} as const

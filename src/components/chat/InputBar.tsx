@@ -1,7 +1,7 @@
 import { useRef, useEffect, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowUp, Square, Globe, Paperclip } from 'lucide-react'
-import { springs } from '../../lib/theme'
+import { shadows } from '../../lib/theme'
 
 interface InputBarProps {
   onSend: (text: string) => void
@@ -16,7 +16,6 @@ export default function InputBar({ onSend, isStreaming, onStop, disabled }: Inpu
   const [webSearch, setWebSearch] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  /* Auto-resize textarea */
   useEffect(() => {
     const el = textareaRef.current
     if (!el) return
@@ -24,7 +23,6 @@ export default function InputBar({ onSend, isStreaming, onStop, disabled }: Inpu
     el.style.height = `${Math.min(el.scrollHeight, 200)}px`
   }, [value])
 
-  /* Cmd+/ focus shortcut */
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === '/') {
@@ -53,51 +51,43 @@ export default function InputBar({ onSend, isStreaming, onStop, disabled }: Inpu
   const canSend = value.trim().length > 0 && !disabled
 
   return (
-    <div
-      style={{
-        padding: '0 24px 20px',
-        flexShrink: 0,
-      }}
-    >
-      {/* Web search indicator */}
+    <div style={{ padding: '0 20px 20px', flexShrink: 0 }}>
+
+      {/* Web search badge */}
       <AnimatePresence>
         {webSearch && (
           <motion.div
-            initial={{ opacity: 0, y: 6, height: 0 }}
-            animate={{ opacity: 1, y: 0, height: 'auto' }}
-            exit={{ opacity: 0, y: 6, height: 0 }}
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
             style={{
               marginBottom: 8,
               display: 'flex',
               alignItems: 'center',
               gap: 6,
               fontFamily: 'var(--font-mono)',
-              fontSize: 11,
-              color: 'var(--color-blue)',
+              fontSize: 10,
+              color: '#0055FF',
+              letterSpacing: '0.1em',
+              textTransform: 'uppercase',
             }}
           >
-            <Globe size={11} />
-            Web search enabled
+            <Globe size={10} />
+            WEB SEARCH ON
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Main input container */}
-      <motion.div
-        animate={{
-          boxShadow: focused
-            ? '0 0 0 2px var(--color-neon-lime), 0 0 24px rgba(200,255,0,0.15)'
-            : '0 0 0 1.5px var(--color-border)',
-        }}
-        transition={{ duration: 0.2 }}
+      {/* Input box */}
+      <div
         style={{
-          background: 'var(--color-surface)',
-          borderRadius: 'var(--radius-bubble)',
-          overflow: 'hidden',
+          background: '#fff',
+          border: focused ? '3px solid #000' : '2px solid #000',
+          boxShadow: focused ? shadows.xl : shadows.md,
+          transition: 'box-shadow 0.1s, border 0.1s',
           position: 'relative',
         }}
       >
-        {/* Textarea */}
         <textarea
           ref={textareaRef}
           value={value}
@@ -105,7 +95,7 @@ export default function InputBar({ onSend, isStreaming, onStop, disabled }: Inpu
           onKeyDown={handleKeyDown}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
-          placeholder="Message ink.ai…"
+          placeholder="TYPE YOUR MESSAGE..."
           disabled={disabled}
           rows={1}
           style={{
@@ -114,12 +104,12 @@ export default function InputBar({ onSend, isStreaming, onStop, disabled }: Inpu
             border: 'none',
             outline: 'none',
             resize: 'none',
-            padding: '16px 56px 16px 20px',
+            padding: '14px 16px',
             fontFamily: 'var(--font-mono)',
             fontSize: 14,
             lineHeight: 1.6,
-            color: 'var(--color-text)',
-            caretColor: 'var(--color-neon-lime)',
+            color: '#000',
+            caretColor: '#000',
             overflowY: 'auto',
             maxHeight: 200,
           }}
@@ -131,78 +121,78 @@ export default function InputBar({ onSend, isStreaming, onStop, disabled }: Inpu
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            padding: '8px 12px 12px',
-            borderTop: '1px solid var(--color-border)',
+            padding: '6px 10px 10px',
+            borderTop: '2px solid #000',
           }}
         >
-          {/* Left actions */}
+          {/* Left */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            {/* Attach */}
-            <IconBtn title="Attach file" onClick={() => {}}>
-              <Paperclip size={14} />
+            <IconBtn title="Attach" onClick={() => {}}>
+              <Paperclip size={13} />
             </IconBtn>
 
-            {/* Web search toggle */}
             <motion.button
-              whileTap={{ scale: 0.93 }}
-              transition={springs.quick}
+              whileHover={{ x: -1, y: -1, boxShadow: shadows.sm }}
+              whileTap={{ x: 1, y: 1, boxShadow: 'none' }}
+              transition={{ duration: 0.07 }}
               onClick={() => setWebSearch((v) => !v)}
-              title="Toggle web search"
               style={{
-                background: webSearch ? 'rgba(79,195,247,0.15)' : 'transparent',
-                border: webSearch ? '1px solid rgba(79,195,247,0.4)' : '1px solid transparent',
-                borderRadius: 'var(--radius-xs)',
-                color: webSearch ? 'var(--color-blue)' : 'var(--color-muted)',
+                background: webSearch ? '#0055FF' : 'transparent',
+                border: '1.5px solid #000',
+                color: webSearch ? '#fff' : '#000',
                 cursor: 'pointer',
-                padding: '5px 8px',
+                padding: '3px 8px',
                 display: 'flex',
                 alignItems: 'center',
-                gap: 5,
+                gap: 4,
                 fontFamily: 'var(--font-mono)',
-                fontSize: 11,
-                transition: 'all 0.15s',
+                fontSize: 10,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                boxShadow: 'none',
               }}
             >
-              <Globe size={12} />
-              Search
+              <Globe size={10} />
+              SEARCH
             </motion.button>
           </div>
 
-          {/* Right: keyboard hint + send */}
+          {/* Right */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span
               style={{
                 fontFamily: 'var(--font-mono)',
-                fontSize: 10,
-                color: 'var(--color-faint)',
+                fontSize: 9,
+                color: '#999',
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
               }}
             >
-              {isStreaming ? '' : '⏎ send · ⇧⏎ newline'}
+              {isStreaming ? '' : '↵ SEND'}
             </span>
 
-            {/* Send / Stop button */}
             <AnimatePresence mode="wait">
               {isStreaming ? (
                 <motion.button
                   key="stop"
-                  initial={{ scale: 0.8, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  exit={{ scale: 0.8, opacity: 0 }}
-                  transition={springs.quick}
-                  whileTap={{ scale: 0.9 }}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  whileHover={{ x: -1, y: -1, boxShadow: shadows.sm }}
+                  whileTap={{ x: 1, y: 1, boxShadow: 'none' }}
+                  transition={{ duration: 0.07 }}
                   onClick={onStop}
                   style={{
-                    width: 34,
-                    height: 34,
-                    borderRadius: '50%',
-                    background: 'var(--color-coral)',
-                    border: 'none',
+                    width: 36,
+                    height: 36,
+                    background: '#FF3B3B',
+                    border: '2px solid #000',
+                    boxShadow: shadows.sm,
                     color: '#fff',
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    boxShadow: '0 0 14px rgba(255,79,94,0.5)',
                   }}
                 >
                   <Square size={13} fill="currentColor" />
@@ -210,67 +200,57 @@ export default function InputBar({ onSend, isStreaming, onStop, disabled }: Inpu
               ) : (
                 <motion.button
                   key="send"
-                  initial={{ scale: 0.8, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  exit={{ scale: 0.8, opacity: 0 }}
-                  transition={springs.quick}
-                  whileHover={canSend ? { scale: 1.08 } : {}}
-                  whileTap={canSend ? { scale: 0.92 } : {}}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  whileHover={canSend ? { x: -1, y: -1, boxShadow: shadows.md } : {}}
+                  whileTap={canSend ? { x: 1, y: 1, boxShadow: 'none' } : {}}
+                  transition={{ duration: 0.07 }}
                   onClick={handleSend}
                   disabled={!canSend}
                   style={{
-                    width: 34,
-                    height: 34,
-                    borderRadius: '50%',
-                    background: canSend ? 'var(--color-neon-lime)' : 'var(--color-border)',
-                    border: 'none',
-                    color: canSend ? '#0D0D12' : 'var(--color-faint)',
+                    width: 36,
+                    height: 36,
+                    background: canSend ? '#000' : '#ccc',
+                    border: '2px solid #000',
+                    boxShadow: canSend ? shadows.sm : 'none',
+                    color: canSend ? '#FFE500' : '#888',
                     cursor: canSend ? 'pointer' : 'default',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    boxShadow: canSend ? '0 0 14px rgba(200,255,0,0.4)' : 'none',
-                    transition: 'background 0.15s, box-shadow 0.15s, color 0.15s',
+                    transition: 'background 0.1s',
                   }}
                 >
-                  <ArrowUp size={16} strokeWidth={2.5} />
+                  <ArrowUp size={15} strokeWidth={3} />
                 </motion.button>
               )}
             </AnimatePresence>
           </div>
         </div>
-      </motion.div>
+      </div>
     </div>
   )
 }
 
-/* ── Small icon button ───────────────────────────────── */
 function IconBtn({ children, title, onClick }: { children: React.ReactNode; title: string; onClick: () => void }) {
   return (
     <motion.button
-      whileTap={{ scale: 0.9 }}
-      transition={springs.quick}
+      whileHover={{ x: -1, y: -1, boxShadow: shadows.sm }}
+      whileTap={{ x: 1, y: 1, boxShadow: 'none' }}
+      transition={{ duration: 0.07 }}
       onClick={onClick}
       title={title}
       style={{
-        background: 'none',
-        border: '1px solid transparent',
-        borderRadius: 'var(--radius-xs)',
-        color: 'var(--color-muted)',
+        background: 'transparent',
+        border: '1.5px solid #000',
+        color: '#000',
         cursor: 'pointer',
-        padding: 6,
+        padding: '4px 6px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        transition: 'color 0.15s, background 0.15s',
-      }}
-      onMouseEnter={(e) => {
-        ;(e.currentTarget as HTMLElement).style.color = 'var(--color-text)'
-        ;(e.currentTarget as HTMLElement).style.background = 'var(--color-surface-2)'
-      }}
-      onMouseLeave={(e) => {
-        ;(e.currentTarget as HTMLElement).style.color = 'var(--color-muted)'
-        ;(e.currentTarget as HTMLElement).style.background = 'none'
+        boxShadow: 'none',
       }}
     >
       {children}

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Copy, Check, RefreshCw, MoreHorizontal } from 'lucide-react'
-import { springs } from '../../lib/theme'
+import { Copy, Check, RefreshCw } from 'lucide-react'
+import { springs, shadows } from '../../lib/theme'
 import type { Message } from '../../types'
 
 interface MessageBubbleProps {
@@ -14,7 +14,7 @@ function formatTime(ts: number): string {
   return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
-export default function MessageBubble({ message, accentColor = '#C8FF00', onRegenerate }: MessageBubbleProps) {
+export default function MessageBubble({ message, accentColor = '#FFE500', onRegenerate }: MessageBubbleProps) {
   const [copied, setCopied] = useState(false)
   const [showActions, setShowActions] = useState(false)
 
@@ -30,24 +30,22 @@ export default function MessageBubble({ message, accentColor = '#C8FF00', onRege
 
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.88, y: 12 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
       transition={springs.bouncy}
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
       style={{
         display: 'flex',
         flexDirection: isUser ? 'row-reverse' : 'row',
-        alignItems: 'flex-end',
+        alignItems: 'flex-start',
         gap: 10,
         padding: '0 24px',
-        marginBottom: 4,
+        marginBottom: 2,
       }}
     >
       {/* Avatar */}
-      {!isUser && (
-        <AIAvatar isAnimating={isStreaming || isPending} />
-      )}
+      {!isUser && <AIAvatar isAnimating={isStreaming || isPending} />}
 
       {/* Bubble + actions */}
       <div
@@ -56,37 +54,57 @@ export default function MessageBubble({ message, accentColor = '#C8FF00', onRege
           flexDirection: 'column',
           alignItems: isUser ? 'flex-end' : 'flex-start',
           maxWidth: '72%',
-          gap: 4,
+          gap: 6,
         }}
       >
-        {/* The bubble */}
+        {/* Label stamp */}
         <div
           style={{
-            position: 'relative',
-            padding: '13px 17px',
-            borderRadius: isUser
-              ? '18px 18px 4px 18px'
-              : '18px 18px 18px 4px',
-            background: isUser ? '#0D0D12' : 'var(--color-surface)',
-            border: isUser
-              ? `2px solid ${accentColor}`
-              : '1.5px solid var(--color-border)',
-            boxShadow: isUser
-              ? `0 0 16px ${accentColor}33, 0 2px 12px rgba(0,0,0,0.4)`
-              : '0 2px 12px rgba(0,0,0,0.3)',
-            color: 'var(--color-text)',
+            fontFamily: 'var(--font-mono)',
+            fontSize: 9,
+            letterSpacing: '0.15em',
+            textTransform: 'uppercase',
+            color: '#999',
+            paddingLeft: isUser ? 0 : 2,
+          }}
+        >
+          {isUser ? 'YOU' : 'INK.AI'}
+        </div>
+
+        {/* Bubble */}
+        <motion.div
+          whileHover={{ x: isUser ? 2 : -2, y: -2 }}
+          transition={{ duration: 0.08 }}
+          style={{
+            padding: '14px 18px',
+            background: isUser ? '#000' : '#FFFFFF',
+            border: '2px solid #000',
+            boxShadow: isUser ? shadows.md : shadows.sm,
+            color: isUser ? '#FFE500' : '#0A0A0A',
             fontFamily: 'var(--font-mono)',
             fontSize: 14,
             lineHeight: 1.7,
             wordBreak: 'break-word',
             whiteSpace: 'pre-wrap',
+            position: 'relative',
           }}
         >
-          {/* Streaming / pending dots */}
-          {isPending && (
-            <PendingDots />
+          {/* Accent top bar for user messages */}
+          {isUser && (
+            <div
+              style={{
+                position: 'absolute',
+                top: -6,
+                right: 12,
+                width: 20,
+                height: 4,
+                background: accentColor,
+                border: '1px solid #000',
+              }}
+            />
           )}
 
+          {isPending && <PendingDots />}
           {!isPending && message.content}
 
           {/* Streaming cursor */}
@@ -96,81 +114,73 @@ export default function MessageBubble({ message, accentColor = '#C8FF00', onRege
               style={{
                 display: 'inline-block',
                 width: 9,
-                height: 16,
-                background: 'var(--color-neon-lime)',
+                height: '1em',
+                background: '#FFE500',
                 marginLeft: 3,
                 verticalAlign: 'text-bottom',
-                borderRadius: 1,
               }}
             />
           )}
-        </div>
+        </motion.div>
 
-        {/* Timestamp + actions row */}
+        {/* Actions row */}
         <motion.div
-          initial={false}
           animate={{ opacity: showActions ? 1 : 0 }}
-          transition={{ duration: 0.15 }}
+          transition={{ duration: 0.12 }}
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 6,
+            gap: 4,
             flexDirection: isUser ? 'row-reverse' : 'row',
           }}
         >
-          {/* Timestamp */}
-          <span
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 10,
-              color: 'var(--color-faint)',
-            }}
-          >
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#aaa', letterSpacing: '0.08em' }}>
             {formatTime(message.createdAt)}
           </span>
 
-          {/* Copy */}
-          <ActionBtn onClick={handleCopy} title="Copy">
-            {copied ? <Check size={11} color="var(--color-neon-lime)" /> : <Copy size={11} />}
+          <ActionBtn onClick={handleCopy} title="Copy" accent={copied ? '#00CC44' : undefined}>
+            {copied ? <Check size={10} /> : <Copy size={10} />}
           </ActionBtn>
 
-          {/* Regenerate (AI only) */}
           {!isUser && onRegenerate && (
             <ActionBtn onClick={onRegenerate} title="Regenerate">
-              <RefreshCw size={11} />
+              <RefreshCw size={10} />
             </ActionBtn>
           )}
-
-          {/* More */}
-          <ActionBtn onClick={() => {}} title="More">
-            <MoreHorizontal size={11} />
-          </ActionBtn>
         </motion.div>
       </div>
     </motion.div>
   )
 }
 
-/* ── AI avatar ────────────────────────────────────────── */
+/* ── AI avatar — brutalist square ────────────────────── */
 function AIAvatar({ isAnimating }: { isAnimating: boolean }) {
   return (
     <div
       style={{
-        width: 30,
-        height: 30,
-        borderRadius: '50%',
-        background: 'linear-gradient(135deg, #B57BFF 0%, #4FC3F7 50%, #C8FF00 100%)',
-        backgroundSize: '200% 200%',
+        width: 28,
+        height: 28,
+        background: isAnimating ? '#FFE500' : '#000',
+        border: '2px solid #000',
+        boxShadow: '2px 2px 0px #000',
         flexShrink: 0,
-        border: '1.5px solid rgba(181,123,255,0.4)',
-        boxShadow: '0 0 12px rgba(181,123,255,0.3)',
+        transition: 'background 0.3s',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontFamily: 'var(--font-display)',
+        fontSize: 13,
+        fontWeight: 400,
+        color: isAnimating ? '#000' : '#FFE500',
+        letterSpacing: '0.05em',
       }}
-      className={isAnimating ? 'animate-gradient' : ''}
-    />
+    >
+      AI
+    </div>
   )
 }
 
-/* ── Three-dot pending ───────────────────────────────── */
+/* ── Pending dots ─────────────────────────────────────── */
 function PendingDots() {
   return (
     <div style={{ display: 'flex', gap: 5, alignItems: 'center', padding: '2px 0' }}>
@@ -179,10 +189,9 @@ function PendingDots() {
           key={i}
           className="animate-bounce-dot"
           style={{
-            width: 7,
-            height: 7,
-            borderRadius: '50%',
-            background: 'var(--color-muted)',
+            width: 6,
+            height: 6,
+            background: '#555',
             animationDelay: `${i * 0.16}s`,
           }}
         />
@@ -191,28 +200,34 @@ function PendingDots() {
   )
 }
 
-/* ── Small action button ─────────────────────────────── */
-function ActionBtn({ children, onClick, title }: { children: React.ReactNode; onClick: () => void; title: string }) {
+/* ── Action button ────────────────────────────────────── */
+function ActionBtn({
+  children,
+  onClick,
+  title,
+  accent,
+}: {
+  children: React.ReactNode
+  onClick: () => void
+  title: string
+  accent?: string
+}) {
   return (
     <motion.button
-      whileTap={{ scale: 0.88 }}
+      whileTap={{ scale: 0.9 }}
       transition={springs.quick}
       onClick={onClick}
       title={title}
       style={{
-        background: 'var(--color-surface)',
-        border: '1px solid var(--color-border)',
-        borderRadius: 4,
-        color: 'var(--color-muted)',
+        background: accent ?? 'transparent',
+        border: '1.5px solid #000',
+        color: '#000',
         cursor: 'pointer',
-        padding: '3px 5px',
+        padding: '2px 5px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        transition: 'color 0.12s',
       }}
-      onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = 'var(--color-text)')}
-      onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = 'var(--color-muted)')}
     >
       {children}
     </motion.button>
