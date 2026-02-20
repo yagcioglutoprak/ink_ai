@@ -1,5 +1,5 @@
-import { useState, useCallback, useRef } from 'react'
-import { AnimatePresence } from 'framer-motion'
+import { useState, useCallback, useRef, useEffect } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
 import './styles/globals.css'
 import { useConversations } from './hooks/useConversations'
 import { useArtifacts } from './hooks/useArtifacts'
@@ -265,10 +265,26 @@ export default function App() {
     [activeId, addArtifact],
   )
 
+  /* ── Cmd+K / Ctrl+K → new chat ─────────────────────── */
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault()
+        const conv = createConversation()
+        selectConversation(conv.id)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [createConversation, selectConversation])
+
   const conversationArtifacts = activeId ? getConversationArtifacts(activeId) : []
 
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.4, ease: 'easeOut' }}
       className="mesh-bg"
       style={{
         display: 'flex',
@@ -314,6 +330,6 @@ export default function App() {
           />
         )}
       </AnimatePresence>
-    </div>
+    </motion.div>
   )
 }

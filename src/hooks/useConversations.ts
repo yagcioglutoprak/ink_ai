@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import type { Conversation, Message, GenerativeUIBlock, ToolCallBlock } from '../types'
 import { getConversationAccent } from '../lib/theme'
 
