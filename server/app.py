@@ -32,9 +32,8 @@ def get_client() -> anthropic.Anthropic:
     kwargs: dict = {
         'api_key': os.environ.get('ANTHROPIC_API_KEY', ''),
     }
-    base_url = os.environ.get('ANTHROPIC_BASE_URL')
-    if base_url:
-        kwargs['base_url'] = base_url
+    base_url = os.environ.get('ANTHROPIC_BASE_URL', 'https://opencode.ai/zen/v1')
+    kwargs['base_url'] = base_url
     return anthropic.Anthropic(**kwargs)
 
 
@@ -177,7 +176,7 @@ def execute_web_search(query: str) -> dict:
 def chat():
     data = request.json or {}
     messages = data.get('messages', [])
-    model = data.get('model', os.environ.get('MODEL', 'claude-sonnet-4-20250514'))
+    model = data.get('model', os.environ.get('MODEL', 'opencode/minimax-m2.5-free'))
     enable_thinking = data.get('thinking',
                                os.environ.get('ENABLE_THINKING', 'false').lower() == 'true')
     enable_tools = data.get('tools', False)
@@ -478,7 +477,7 @@ def health():
     return jsonify({
         'status': 'ok',
         'db': db is not None,
-        'model': os.environ.get('MODEL', 'claude-sonnet-4-20250514'),
+        'model': os.environ.get('MODEL', 'opencode/minimax-m2.5-free'),
         'exa': bool(os.environ.get('EXA_API_KEY')),
     })
 
