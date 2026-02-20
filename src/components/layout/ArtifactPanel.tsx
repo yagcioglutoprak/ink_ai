@@ -74,6 +74,8 @@ export default function ArtifactPanel({
 
   return (
     <motion.aside
+      role="complementary"
+      aria-label="Artifact viewer"
       initial={{ x: '100%', opacity: 0 }}
       animate={{ x: 0, opacity: 1 }}
       exit={{ x: '100%', opacity: 0 }}

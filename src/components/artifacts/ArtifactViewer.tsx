@@ -105,6 +105,7 @@ export default function ArtifactViewer({
           whileTap={{ x: 1, y: 1, boxShadow: 'none' }}
           transition={{ duration: 0.07 }}
           onClick={() => setFullscreen((v) => !v)}
+          aria-label="Toggle fullscreen"
           style={{
             background: 'transparent',
             border: '1.5px solid #000',
@@ -125,6 +126,7 @@ export default function ArtifactViewer({
           whileTap={{ x: 1, y: 1, boxShadow: 'none' }}
           transition={{ duration: 0.07 }}
           onClick={onClose}
+          aria-label="Close artifact"
           style={{
             background: '#FF3B3B',
             border: '1.5px solid #000',

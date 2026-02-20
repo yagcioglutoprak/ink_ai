@@ -57,6 +57,8 @@ export default function MessageBubble({ message, accentColor = '#FFE500', onRege
 
   return (
     <motion.div
+      role="article"
+      aria-label={isUser ? 'Message from you' : 'Message from AI'}
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={springs.bouncy}

@@ -45,6 +45,8 @@ export default function Sidebar({
       {open && (
         <motion.aside
           key="sidebar"
+          role="navigation"
+          aria-label="Conversations sidebar"
           initial={{ x: -280, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
           exit={{ x: -280, opacity: 0 }}
@@ -89,6 +91,7 @@ export default function Sidebar({
 
             <button
               onClick={onToggle}
+              aria-label="Toggle sidebar"
               style={{
                 background: '#000',
                 border: '2px solid #000',
@@ -111,6 +114,7 @@ export default function Sidebar({
               whileTap={{ x: 2, y: 2, boxShadow: 'none' }}
               transition={{ duration: 0.08 }}
               onClick={onCreate}
+              aria-label="New chat"
               style={{
                 width: '100%',
                 padding: '12px 16px',
@@ -135,6 +139,7 @@ export default function Sidebar({
 
           {/* ── Conversation List ────────────────────── */}
           <div
+            role="list"
             style={{
               flex: 1,
               overflowY: 'auto',
@@ -213,6 +218,7 @@ export default function Sidebar({
           exit={{ opacity: 0, x: -8 }}
           transition={springs.quick}
           onClick={onToggle}
+          aria-label="Toggle sidebar"
           style={{
             position: 'absolute',
             left: 12,
@@ -263,6 +269,8 @@ function ConversationRow({
 
   return (
     <motion.div
+      role="listitem"
+      aria-current={isActive ? 'true' : undefined}
       initial={{ x: -16, opacity: 0 }}
       animate={{ x: 0, opacity: 1 }}
       transition={{ ...springs.smooth, delay }}

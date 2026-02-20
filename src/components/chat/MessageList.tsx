@@ -44,6 +44,9 @@ export default function MessageList({ messages, accentColor, onRegenerate, onOpe
       {/* Scroll container */}
       <div
         ref={scrollRef}
+        role="log"
+        aria-label="Chat messages"
+        aria-live="polite"
         onScroll={handleScroll}
         style={{
           height: '100%',
@@ -82,6 +85,7 @@ export default function MessageList({ messages, accentColor, onRegenerate, onOpe
             exit={{ opacity: 0, y: 12, scale: 0.85 }}
             transition={springs.quick}
             onClick={jumpToBottom}
+            aria-label="Scroll to latest message"
             style={{
               position: 'absolute',
               bottom: 16,

@@ -96,6 +96,7 @@ export default function InputBar({ onSend, isStreaming, onStop, disabled }: Inpu
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
           placeholder="TYPE YOUR MESSAGE..."
+          aria-label="Message input"
           disabled={disabled}
           rows={1}
           style={{
@@ -136,6 +137,7 @@ export default function InputBar({ onSend, isStreaming, onStop, disabled }: Inpu
               whileTap={{ x: 1, y: 1, boxShadow: 'none' }}
               transition={{ duration: 0.07 }}
               onClick={() => setWebSearch((v) => !v)}
+              aria-label="Toggle web search"
               style={{
                 background: webSearch ? '#0055FF' : 'transparent',
                 border: '1.5px solid #000',
@@ -182,6 +184,7 @@ export default function InputBar({ onSend, isStreaming, onStop, disabled }: Inpu
                   whileTap={{ x: 1, y: 1, boxShadow: 'none' }}
                   transition={{ duration: 0.07 }}
                   onClick={onStop}
+                  aria-label="Stop generation"
                   style={{
                     width: 36,
                     height: 36,
@@ -208,6 +211,7 @@ export default function InputBar({ onSend, isStreaming, onStop, disabled }: Inpu
                   transition={{ duration: 0.07 }}
                   onClick={handleSend}
                   disabled={!canSend}
+                  aria-label="Send message"
                   style={{
                     width: 36,
                     height: 36,

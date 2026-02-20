@@ -29,6 +29,7 @@ export default function ChatPanel({
 
   return (
     <motion.main
+      aria-label="Chat"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ ...springs.smooth, delay: 0.1 }}
