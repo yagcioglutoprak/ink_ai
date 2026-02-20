@@ -1,75 +1,63 @@
 """
-Azure Cosmos DB integration for conversation persistence.
+MongoDB Atlas integration for conversation persistence.
 Optional — if not configured, the app runs without persistence.
 """
 
 import os
 import logging
 
+from pymongo import MongoClient, DESCENDING
+from pymongo.errors import ConnectionFailure
+
 logger = logging.getLogger(__name__)
 
 
-class CosmosDB:
+class MongoDB:
     def __init__(self):
-        from azure.cosmos import CosmosClient, PartitionKey, exceptions
+        uri = os.environ.get('MONGODB_URI')
+        if not uri:
+            raise ValueError('MONGODB_URI required')
 
-        self.exceptions = exceptions
+        self.client = MongoClient(uri)
 
-        endpoint = os.environ.get('AZURE_COSMOS_ENDPOINT')
-        key = os.environ.get('AZURE_COSMOS_KEY')
+        # Verify connectivity
+        self.client.admin.command('ping')
 
-        if not endpoint or not key:
-            raise ValueError('AZURE_COSMOS_ENDPOINT and AZURE_COSMOS_KEY required')
+        db_name = os.environ.get('MONGODB_DATABASE', 'ink_ai')
+        self.db = self.client[db_name]
+        self.conversations = self.db['conversations']
 
-        self.client = CosmosClient(endpoint, credential=key)
-
-        db_name = os.environ.get('AZURE_COSMOS_DATABASE', 'ink_ai')
-        container_name = os.environ.get('AZURE_COSMOS_CONTAINER', 'conversations')
-
-        # Create database if not exists
-        self.database = self.client.create_database_if_not_exists(id=db_name)
-
-        # Create container if not exists (partition key: /id)
-        self.container = self.database.create_container_if_not_exists(
-            id=container_name,
-            partition_key=PartitionKey(path='/id'),
-        )
+        # Ensure index for fast listing
+        self.conversations.create_index([('updatedAt', DESCENDING)])
 
     def save_conversation(self, conversation: dict):
-        self.container.upsert_item(conversation)
+        self.conversations.replace_one(
+            {'id': conversation['id']},
+            conversation,
+            upsert=True,
+        )
 
     def get_conversation(self, conversation_id: str) -> dict | None:
-        try:
-            return self.container.read_item(
-                item=conversation_id,
-                partition_key=conversation_id,
-            )
-        except self.exceptions.CosmosResourceNotFoundError:
-            return None
+        doc = self.conversations.find_one({'id': conversation_id}, {'_id': 0})
+        return doc
 
     def list_conversations(self) -> list[dict]:
-        return list(self.container.query_items(
-            query='SELECT c.id, c.title, c.accentColor, c.createdAt, c.updatedAt FROM c ORDER BY c.updatedAt DESC',
-            enable_cross_partition_query=True,
-        ))
+        return list(self.conversations.find(
+            {},
+            {'id': 1, 'title': 1, 'accentColor': 1, 'createdAt': 1, 'updatedAt': 1, '_id': 0},
+        ).sort('updatedAt', DESCENDING))
 
     def delete_conversation(self, conversation_id: str) -> bool:
-        try:
-            self.container.delete_item(
-                item=conversation_id,
-                partition_key=conversation_id,
-            )
-            return True
-        except self.exceptions.CosmosResourceNotFoundError:
-            return False
+        result = self.conversations.delete_one({'id': conversation_id})
+        return result.deleted_count > 0
 
 
-def init_db() -> CosmosDB | None:
+def init_db() -> MongoDB | None:
     """Try to initialize the database. Returns None if not configured."""
     try:
-        db = CosmosDB()
-        logger.info('Azure Cosmos DB connected')
+        db = MongoDB()
+        logger.info('MongoDB Atlas connected')
         return db
     except Exception as e:
-        logger.warning('Azure Cosmos DB not available: %s — running without persistence', e)
+        logger.warning('MongoDB not available: %s — running without persistence', e)
         return None

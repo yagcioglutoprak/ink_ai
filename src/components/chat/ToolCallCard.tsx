@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Globe, ChevronDown, ChevronUp, ExternalLink, Check, AlertCircle, Search, Clock } from 'lucide-react'
 import { springs, shadows } from '../../lib/theme'
@@ -6,18 +6,29 @@ import type { ToolCallBlock, WebSearchResult } from '../../types'
 
 interface ToolCallCardProps {
   block: ToolCallBlock
+  /** When true, collapse the card (e.g. when the model starts responding) */
+  forceCollapsed?: boolean
 }
 
 const STATUS_CONFIG = {
   pending: { label: 'QUEUED', color: '#FFE500', bg: '#FFFDE0' },
   running: { label: 'SEARCHING', color: '#0055FF', bg: '#F0F4FF' },
   success: { label: 'DONE', color: '#00CC44', bg: '#F0FFF4' },
-  error:   { label: 'FAILED', color: '#FF3B3B', bg: '#FFF0F0' },
+  error: { label: 'FAILED', color: '#FF3B3B', bg: '#FFF0F0' },
 } as const
 
-export default function ToolCallCard({ block }: ToolCallCardProps) {
-  const [expanded, setExpanded] = useState(false)
+export default function ToolCallCard({ block, forceCollapsed }: ToolCallCardProps) {
+  const [expanded, setExpanded] = useState(block.status === 'running' || block.status === 'pending')
   const status = STATUS_CONFIG[block.status]
+
+  // Auto-expand while running/success, collapse when parent signals
+  useEffect(() => {
+    if (forceCollapsed) {
+      setExpanded(false)
+    } else if (block.status === 'running' || block.status === 'pending' || block.status === 'success') {
+      setExpanded(true)
+    }
+  }, [block.status, forceCollapsed])
   const isWebSearch = block.toolName === 'web_search'
   const searchQuery = (block.args?.query as string) ?? ''
   const searchResults = isWebSearch && block.result && 'results' in (block.result as Record<string, unknown>)
@@ -284,36 +295,36 @@ export default function ToolCallCard({ block }: ToolCallCardProps) {
                   </pre>
                 </div>
               )}
+
+              {/* Web search results */}
+              {isWebSearch && block.status === 'success' && searchResults.length > 0 && (
+                <div style={{ padding: '8px 10px', background: '#FAFAF5' }}>
+                  <div
+                    style={{
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: 9,
+                      letterSpacing: '0.12em',
+                      textTransform: 'uppercase',
+                      color: '#999',
+                      marginBottom: 6,
+                      paddingLeft: 4,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                    }}
+                  >
+                    {searchResults.length} RESULTS
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {searchResults.map((result, i) => (
+                      <SearchResultCard key={i} result={result} index={i} />
+                    ))}
+                  </div>
+                </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
-
-        {/* Web search results — always visible when success */}
-        {isWebSearch && block.status === 'success' && searchResults.length > 0 && (
-          <div style={{ padding: '8px 10px', background: '#FAFAF5' }}>
-            <div
-              style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: 9,
-                letterSpacing: '0.12em',
-                textTransform: 'uppercase',
-                color: '#999',
-                marginBottom: 6,
-                paddingLeft: 4,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-              }}
-            >
-              {searchResults.length} RESULTS
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {searchResults.map((result, i) => (
-                <SearchResultCard key={i} result={result} index={i} />
-              ))}
-            </div>
-          </div>
-        )}
       </div>
     </motion.div>
   )

@@ -63,31 +63,33 @@ export function buildSandboxHTML(componentCode: string): string {
   ::-webkit-scrollbar-thumb { background: #000; }
   /* Selection */
   ::selection { background: var(--color-yellow); color: #000; }
-  /* Error display */
+  /* Error display — subtle, not alarming */
   #sandbox-error {
     display: none;
-    padding: 12px 14px;
-    background: #fff;
-    border: 2px solid #FF3B3B;
-    box-shadow: 3px 3px 0 #FF3B3B;
+    padding: 8px 10px;
+    background: #FAFAF5;
+    border-top: 1px solid #e0e0e0;
     font-family: var(--font-mono);
-    font-size: 12px;
-    color: #FF3B3B;
+    font-size: 10px;
+    color: #999;
     white-space: pre-wrap;
     word-break: break-all;
+    max-height: 60px;
+    overflow-y: auto;
   }
   #sandbox-error .error-label {
-    font-size: 10px;
+    font-size: 9px;
     letter-spacing: 0.12em;
     text-transform: uppercase;
-    margin-bottom: 6px;
+    margin-bottom: 2px;
     font-weight: 500;
+    color: #bbb;
   }
 </style>
 </head>
 <body>
-<div id="sandbox-error"><div class="error-label">Runtime Error</div><div id="sandbox-error-msg"></div></div>
 <div id="root"></div>
+<div id="sandbox-error"><div class="error-label">Error</div><div id="sandbox-error-msg"></div></div>
 
 <!-- React + ReactDOM UMD -->
 <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -163,8 +165,12 @@ export function buildSandboxHTML(componentCode: string): string {
 
   // ── Error handler ───────────────────────────────────────────
   window.onerror = function(msg, src, line, col, err) {
-    const el = document.getElementById('sandbox-error');
-    const msgEl = document.getElementById('sandbox-error-msg');
+    // Only show errors for complete code (contains render call)
+    // Skip transient errors from partial/streaming code
+    var componentCode = ${escaped};
+    if (componentCode.indexOf('render(') === -1) return true;
+    var el = document.getElementById('sandbox-error');
+    var msgEl = document.getElementById('sandbox-error-msg');
     if (el && msgEl) {
       msgEl.textContent = err ? (err.stack || msg) : msg;
       el.style.display = 'block';
@@ -207,13 +213,16 @@ export function buildSandboxHTML(componentCode: string): string {
       window.render, ds
     );
   } catch(err) {
-    const el = document.getElementById('sandbox-error');
-    const msgEl = document.getElementById('sandbox-error-msg');
-    if (el && msgEl) {
-      msgEl.textContent = err.stack || err.message;
-      el.style.display = 'block';
+    // Only show errors for complete code (contains render call)
+    if (componentCode.indexOf('render(') !== -1) {
+      const el = document.getElementById('sandbox-error');
+      const msgEl = document.getElementById('sandbox-error-msg');
+      if (el && msgEl) {
+        msgEl.textContent = err.stack || err.message;
+        el.style.display = 'block';
+      }
+      postHeight();
     }
-    postHeight();
   }
 })();
 </script>

@@ -12,7 +12,24 @@ export default function GeneratedComponent({ code, caption }: GeneratedComponent
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const [height, setHeight] = useState(120)
   const [loading, setLoading] = useState(true)
-  const srcDoc = buildSandboxHTML(code)
+
+  // Debounce srcDoc updates to avoid iframe flickering during streaming
+  const [debouncedCode, setDebouncedCode] = useState(code)
+  const [isStreaming, setIsStreaming] = useState(false)
+  const lastCodeRef = useRef(code)
+
+  useEffect(() => {
+    lastCodeRef.current = code
+    setIsStreaming(true)
+    const t = setTimeout(() => {
+      setDebouncedCode(lastCodeRef.current)
+      setIsStreaming(false)
+      setLoading(true)
+    }, 400)
+    return () => clearTimeout(t)
+  }, [code])
+
+  const srcDoc = buildSandboxHTML(debouncedCode)
 
   const handleMessage = useCallback((e: MessageEvent) => {
     if (e.data?.type === 'sandbox-resize' && typeof e.data.height === 'number') {
@@ -30,7 +47,7 @@ export default function GeneratedComponent({ code, caption }: GeneratedComponent
   useEffect(() => {
     const t = setTimeout(() => setLoading(false), 4000)
     return () => clearTimeout(t)
-  }, [])
+  }, [debouncedCode])
 
   return (
     <motion.div
@@ -67,13 +84,14 @@ export default function GeneratedComponent({ code, caption }: GeneratedComponent
             letterSpacing: '0.14em',
             textTransform: 'uppercase',
             color: '#fff',
-            background: '#000',
+            background: isStreaming ? '#0055FF' : '#000',
             padding: '2px 6px',
             border: '1px solid #000',
             marginLeft: 'auto',
+            transition: 'background 0.2s',
           }}
         >
-          GENERATED UI
+          {isStreaming ? 'GENERATING...' : 'GENERATED UI'}
         </span>
       </div>
 
@@ -87,8 +105,39 @@ export default function GeneratedComponent({ code, caption }: GeneratedComponent
           overflow: 'hidden',
         }}
       >
+        {/* Streaming code preview */}
+        {isStreaming && (
+          <pre
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 11,
+              color: '#555',
+              padding: 12,
+              margin: 0,
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-all',
+              maxHeight: 200,
+              overflowY: 'auto',
+              lineHeight: 1.5,
+            }}
+          >
+            {code}
+            <span
+              className="animate-cursor-blink"
+              style={{
+                display: 'inline-block',
+                width: 7,
+                height: '1em',
+                background: '#0055FF',
+                marginLeft: 2,
+                verticalAlign: 'text-bottom',
+              }}
+            />
+          </pre>
+        )}
+
         {/* Loading shimmer */}
-        {loading && (
+        {!isStreaming && loading && (
           <div
             className="animate-shimmer"
             style={{
@@ -101,6 +150,7 @@ export default function GeneratedComponent({ code, caption }: GeneratedComponent
           />
         )}
 
+        {/* Rendered iframe — hidden while streaming, shown when stable */}
         <iframe
           ref={iframeRef}
           srcDoc={srcDoc}
@@ -108,9 +158,9 @@ export default function GeneratedComponent({ code, caption }: GeneratedComponent
           scrolling="no"
           style={{
             width: '100%',
-            height,
+            height: isStreaming ? 0 : height,
             border: 'none',
-            display: 'block',
+            display: isStreaming ? 'none' : 'block',
             transition: 'height 0.2s ease',
           }}
           title="Generated UI Component"

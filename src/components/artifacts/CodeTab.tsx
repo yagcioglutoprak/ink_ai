@@ -8,15 +8,32 @@ import type { Artifact } from '../../types'
 
 interface CodeTabProps {
   artifact: Artifact
+  isStreaming?: boolean
 }
 
-export default function CodeTab({ artifact }: CodeTabProps) {
+export default function CodeTab({ artifact, isStreaming }: CodeTabProps) {
   const [highlightedHTML, setHighlightedHTML] = useState<string>('')
   const [copied, setCopied] = useState(false)
   const [loading, setLoading] = useState(true)
   const containerRef = useRef<HTMLDivElement>(null)
+  const codeEndRef = useRef<HTMLDivElement>(null)
 
+  // Auto-scroll to bottom during streaming
   useEffect(() => {
+    if (isStreaming && codeEndRef.current) {
+      codeEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' })
+    }
+  }, [artifact.code, isStreaming])
+
+  // Only run Shiki when NOT streaming (or when streaming just ended)
+  useEffect(() => {
+    if (isStreaming) {
+      // During streaming, skip highlighting — show raw code
+      setHighlightedHTML('')
+      setLoading(false)
+      return
+    }
+
     let cancelled = false
     setLoading(true)
     highlightCode(artifact.code, artifact.type).then((html) => {
@@ -28,7 +45,7 @@ export default function CodeTab({ artifact }: CodeTabProps) {
       if (!cancelled) setLoading(false)
     })
     return () => { cancelled = true }
-  }, [artifact.code, artifact.type])
+  }, [artifact.code, artifact.type, isStreaming])
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(artifact.code)

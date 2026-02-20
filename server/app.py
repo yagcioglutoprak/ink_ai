@@ -1,6 +1,6 @@
 """
 Flask server — /api/chat streaming endpoint + conversation CRUD.
-Supports any Anthropic-compatible API via ANTHROPIC_BASE_URL.
+Supports any OpenAI-compatible API via OPENAI_BASE_URL.
 Phase 4: Tool calls with Exa web search.
 """
 
@@ -11,7 +11,7 @@ import logging
 from flask import Flask, request, Response, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
-import anthropic
+from openai import OpenAI
 
 load_dotenv()
 
@@ -21,29 +21,29 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 CORS(app)
 
-# ── Optional Azure Cosmos DB ────────────────────────────
+# ── Optional MongoDB Atlas ──────────────────────────────
 from db import init_db
 db = init_db()
 
 
 # ── Helpers ─────────────────────────────────────────────
 
-def get_client() -> anthropic.Anthropic:
-    kwargs: dict = {
-        'api_key': os.environ.get('ANTHROPIC_API_KEY', ''),
-    }
-    base_url = os.environ.get('ANTHROPIC_BASE_URL', 'https://opencode.ai/zen/v1')
-    kwargs['base_url'] = base_url
-    return anthropic.Anthropic(**kwargs)
+def get_client() -> OpenAI:
+    return OpenAI(
+        api_key=os.environ.get('OPENAI_API_KEY', ''),
+        base_url=os.environ.get('OPENAI_BASE_URL', 'https://api.openai.com/v1'),
+    )
 
 
 def sse(data: dict) -> str:
     return f"data: {json.dumps(data)}\n\n"
 
 
-def format_messages(messages: list[dict]) -> list[dict]:
-    """Convert frontend messages to Anthropic API format."""
+def format_messages(messages: list[dict], system_prompt: str = '') -> list[dict]:
+    """Convert frontend messages to OpenAI chat completion format."""
     formatted = []
+    if system_prompt:
+        formatted.append({'role': 'system', 'content': system_prompt})
     for msg in messages:
         formatted.append({
             'role': msg['role'],
@@ -52,76 +52,83 @@ def format_messages(messages: list[dict]) -> list[dict]:
     return formatted
 
 
-# ── Tool definitions ────────────────────────────────────
+# ── Tool definitions (OpenAI function-calling format) ───
 
 WEB_SEARCH_TOOL = {
-    'name': 'web_search',
-    'description': (
-        'Search the web for current information. Use this when the user asks about '
-        'recent events, needs up-to-date data, wants to look something up, or when '
-        'your knowledge might be outdated. Returns titles, URLs, and text snippets.'
-    ),
-    'input_schema': {
-        'type': 'object',
-        'properties': {
-            'query': {
-                'type': 'string',
-                'description': 'The search query to look up on the web.',
+    'type': 'function',
+    'function': {
+        'name': 'web_search',
+        'description': (
+            'Search the web for current information. Use this when the user asks about '
+            'recent events, needs up-to-date data, wants to look something up, or when '
+            'your knowledge might be outdated. Returns titles, URLs, and text snippets.'
+        ),
+        'parameters': {
+            'type': 'object',
+            'properties': {
+                'query': {
+                    'type': 'string',
+                    'description': 'The search query to look up on the web.',
+                },
             },
+            'required': ['query'],
         },
-        'required': ['query'],
     },
 }
 
 RENDER_UI_TOOL = {
-    'name': 'render_ui',
-    'description': (
-        'Render a live interactive UI widget inline in the chat. Use this when structured '
-        'visual output would answer the user better than plain text — for example color palettes, '
-        'comparison tables, pros/cons lists, or progress trackers.\n\n'
-        'Available widget types and their props:\n\n'
-        '1. ColorPalette — Show color swatches.\n'
-        '   props: { "colors": [{ "name": "Sand", "hex": "#C8A97E", "role": "background" }, ...] }\n\n'
-        '2. ComparisonTable — Compare items across criteria.\n'
-        '   props: { "items": ["React", "Vue"], "criteria": [{ "label": "Speed", "values": ["Fast", "Fast"] }] }\n\n'
-        '3. ProsConsList — Show pros and cons.\n'
-        '   props: { "topic": "TypeScript", "pros": ["Type safety", ...], "cons": ["Verbose", ...] }\n\n'
-        '4. ProgressTracker — Track steps.\n'
-        '   props: { "steps": [{ "label": "Step 1", "done": true }, { "label": "Step 2", "done": false }] }\n\n'
-        'You may also generate arbitrary React JSX components by setting mode to "generated" and '
-        'providing code. The code runs in a sandboxed iframe with React 18. '
-        'Use the global `render(<Component />)` function to mount. '
-        'A `ds` design system object is available with colors, shadows, fonts, and helpers like '
-        'ds.card(), ds.btn(), ds.stamp, ds.heading(size). '
-        'Available hooks: useState, useEffect, useRef, useCallback, useMemo, useReducer.'
-    ),
-    'input_schema': {
-        'type': 'object',
-        'properties': {
-            'mode': {
-                'type': 'string',
-                'enum': ['widget', 'generated'],
-                'description': 'widget = use a pre-built widget type, generated = provide custom JSX code.',
+    'type': 'function',
+    'function': {
+        'name': 'render_ui',
+        'description': (
+            'Render a SMALL compact interactive widget inline in the chat. '
+            'ONLY for: color palettes, comparison tables, pros/cons, progress trackers, mini calculators, small interactive components. '
+            'NEVER use for websites, landing pages, dashboards, or multi-section layouts — '
+            'for those, write code in a fenced markdown code block instead.\n\n'
+            'Available widget types and their props:\n\n'
+            '1. ColorPalette — Show color swatches.\n'
+            '   props: { "colors": [{ "name": "Sand", "hex": "#C8A97E", "role": "background" }, ...] }\n\n'
+            '2. ComparisonTable — Compare items across criteria.\n'
+            '   props: { "items": ["React", "Vue"], "criteria": [{ "label": "Speed", "values": ["Fast", "Fast"] }] }\n\n'
+            '3. ProsConsList — Show pros and cons.\n'
+            '   props: { "topic": "TypeScript", "pros": ["Type safety", ...], "cons": ["Verbose", ...] }\n\n'
+            '4. ProgressTracker — Track steps.\n'
+            '   props: { "steps": [{ "label": "Step 1", "done": true }, { "label": "Step 2", "done": false }] }\n\n'
+            'You may also generate arbitrary React JSX components by setting mode to "generated" and '
+            'providing code. The code runs in a sandboxed iframe with React 18. '
+            'Use the global `render(<Component />)` function to mount. '
+            'A `ds` design system object is available with colors, shadows, fonts, and helpers like '
+            'ds.card(), ds.btn(), ds.stamp, ds.heading(size). '
+            'Available hooks: useState, useEffect, useRef, useCallback, useMemo, useReducer.'
+        ),
+        'parameters': {
+            'type': 'object',
+            'properties': {
+                'mode': {
+                    'type': 'string',
+                    'enum': ['widget', 'generated'],
+                    'description': 'widget = use a pre-built widget type, generated = provide custom JSX code.',
+                },
+                'widget_type': {
+                    'type': 'string',
+                    'enum': ['ColorPalette', 'ComparisonTable', 'ProsConsList', 'ProgressTracker'],
+                    'description': 'Required when mode=widget. The widget to render.',
+                },
+                'props': {
+                    'type': 'object',
+                    'description': 'Required when mode=widget. The props object for the chosen widget.',
+                },
+                'code': {
+                    'type': 'string',
+                    'description': 'Required when mode=generated. Raw JSX component code. Must call render(<Component />) at the end.',
+                },
+                'caption': {
+                    'type': 'string',
+                    'description': 'Optional short caption shown above the widget.',
+                },
             },
-            'widget_type': {
-                'type': 'string',
-                'enum': ['ColorPalette', 'ComparisonTable', 'ProsConsList', 'ProgressTracker'],
-                'description': 'Required when mode=widget. The widget to render.',
-            },
-            'props': {
-                'type': 'object',
-                'description': 'Required when mode=widget. The props object for the chosen widget.',
-            },
-            'code': {
-                'type': 'string',
-                'description': 'Required when mode=generated. Raw JSX component code. Must call render(<Component />) at the end.',
-            },
-            'caption': {
-                'type': 'string',
-                'description': 'Optional short caption shown above the widget.',
-            },
+            'required': ['mode'],
         },
-        'required': ['mode'],
     },
 }
 
@@ -188,22 +195,11 @@ def chat():
     client = get_client()
 
     def generate():
-        block_types: dict[int, str] = {}
         thinking_start_time: float | None = None
         full_thinking = ''
         full_text = ''
 
-        # Track tool calls during streaming
-        tool_calls: dict[int, dict] = {}
-
         try:
-            params: dict = {
-                'model': model,
-                'max_tokens': int(os.environ.get('MAX_TOKENS', '8192')),
-                'messages': format_messages(messages),
-                'stream': True,
-            }
-
             system_prompt = os.environ.get('SYSTEM_PROMPT', '') or (
                 'You are INK.AI — a friendly, sharp, and confident AI assistant with a neo-brutalist attitude. '
                 'You speak in a warm but direct tone. You keep answers concise and punchy — no fluff, no filler. '
@@ -216,172 +212,217 @@ def chat():
             tools = list(TOOLS_UI)
 
             # Add web search tool when enabled
-            if enable_tools:
-                tools.extend(TOOLS_SEARCH)
-                system_prompt = (system_prompt + '\n\n' if system_prompt else '') + (
-                    'You have access to a web_search tool. Use it when the user asks about '
-                    'recent events, needs current data, or when your knowledge may be outdated. '
-                    'Always cite your sources with URLs when using search results.'
-                )
+            # Always include web search — model decides when to use it
+            tools.extend(TOOLS_SEARCH)
+            system_prompt = (system_prompt + '\n\n' if system_prompt else '') + (
+                'You have access to a web_search tool. Use it when the user asks about '
+                'recent events, needs current data, or when your knowledge may be outdated. '
+                'Always cite your sources with URLs when using search results.'
+            )
 
             # Widget catalogue guidance
             system_prompt = (system_prompt + '\n\n' if system_prompt else '') + (
-                'You have a render_ui tool that renders live interactive widgets inline in the chat. '
-                'PREFER render_ui over plain text when the answer involves structured data like '
-                'comparisons, color palettes, pros/cons, step tracking, or interactive components. '
-                'For complex or custom UI (calculators, visualizations, games), use mode="generated" '
-                'and write React JSX code.'
+                'You have a render_ui tool that renders SMALL live interactive widgets inline in the chat. '
+                'Use render_ui ONLY for compact widgets like comparisons, color palettes, pros/cons tables, '
+                'step trackers, mini calculators, or small interactive components. '
+                'NEVER use render_ui for full websites, landing pages, dashboards, or multi-section layouts. '
+                'For any code request (websites, apps, pages, full designs), write the code in a fenced '
+                'code block (```html, ```jsx, etc.) so it opens in the artifact/code viewer panel instead.'
             )
 
-            params['tools'] = tools
+            api_messages = format_messages(messages, system_prompt)
 
-            if system_prompt:
-                params['system'] = system_prompt
+            # Build params for OpenAI chat completions
+            params: dict = {
+                'model': model,
+                'max_tokens': int(os.environ.get('MAX_TOKENS', '8192')),
+                'messages': api_messages,
+                'stream': True,
+                'stream_options': {'include_usage': False},
+            }
 
+            if tools:
+                params['tools'] = tools
+                params['tool_choice'] = 'auto'
+
+            # Extended thinking — provider-specific
+            # Pass via extra_body so it reaches providers that support it
+            # without breaking the OpenAI SDK's parameter validation.
             if enable_thinking:
-                params['thinking'] = {
-                    'type': 'enabled',
-                    'budget_tokens': int(os.environ.get('THINKING_BUDGET', '10000')),
-                }
+                thinking_budget = int(os.environ.get('THINKING_BUDGET', '10000'))
                 params['max_tokens'] = max(params['max_tokens'], 16000)
-
-            api_messages = format_messages(messages)
-            params['messages'] = api_messages
+                params['extra_body'] = {
+                    'thinking': {
+                        'type': 'enabled',
+                        'budget_tokens': thinking_budget,
+                    },
+                }
 
             # Loop to handle tool use → result → continuation
             while True:
-                params['messages'] = api_messages
-                stream = client.messages.create(**params)
+                stream = client.chat.completions.create(**params)
 
-                stop_reason = None
-                current_tool_use_block: dict | None = None
-                response_content: list[dict] = []
+                # Track tool calls during streaming
+                # key = tool call index, value = {id, name, arguments}
+                tool_calls_map: dict[int, dict] = {}
+                finish_reason = None
+                in_thinking = False
 
-                for event in stream:
-                    if event.type == 'content_block_start':
-                        block = event.content_block
-                        block_types[event.index] = block.type
+                for chunk in stream:
+                    if not chunk.choices:
+                        continue
 
-                        if block.type == 'thinking':
+                    choice = chunk.choices[0]
+                    delta = choice.delta
+                    finish_reason = choice.finish_reason or finish_reason
+
+                    # ── Thinking / reasoning content ────────
+                    # Many providers expose reasoning via `reasoning_content` field
+                    reasoning = getattr(delta, 'reasoning_content', None) or getattr(delta, 'reasoning', None)
+                    if reasoning:
+                        if not in_thinking:
+                            in_thinking = True
                             thinking_start_time = time.time()
                             full_thinking = ''
                             yield sse({'type': 'thinking_start'})
+                        full_thinking += reasoning
+                        yield sse({'type': 'thinking_delta', 'content': reasoning})
 
-                        elif block.type == 'text':
-                            yield sse({'type': 'text_start'})
-
-                        elif block.type == 'tool_use':
-                            current_tool_use_block = {
-                                'id': block.id,
-                                'name': block.name,
-                                'input_json': '',
-                            }
-                            tool_calls[event.index] = current_tool_use_block
-
-                    elif event.type == 'content_block_delta':
-                        delta = event.delta
-                        if delta.type == 'thinking_delta':
-                            full_thinking += delta.thinking
-                            yield sse({'type': 'thinking_delta', 'content': delta.thinking})
-                        elif delta.type == 'text_delta':
-                            full_text += delta.text
-                            yield sse({'type': 'text_delta', 'content': delta.text})
-                        elif delta.type == 'input_json_delta':
-                            tc = tool_calls.get(event.index)
-                            if tc:
-                                tc['input_json'] += delta.partial_json
-
-                    elif event.type == 'content_block_stop':
-                        btype = block_types.get(event.index)
-
-                        if btype == 'thinking' and thinking_start_time is not None:
-                            duration = int((time.time() - thinking_start_time) * 1000)
+                    # ── Text content ────────────────────────
+                    if delta.content:
+                        # If we were in thinking, close it first
+                        if in_thinking:
+                            in_thinking = False
+                            duration = int((time.time() - thinking_start_time) * 1000) if thinking_start_time else 0
                             yield sse({'type': 'thinking_end', 'durationMs': duration})
                             thinking_start_time = None
-                            response_content.append({
-                                'type': 'thinking',
-                                'thinking': full_thinking,
-                            })
 
-                        elif btype == 'text':
-                            yield sse({'type': 'text_end'})
-                            response_content.append({
-                                'type': 'text',
-                                'text': full_text,
-                            })
+                        full_text += delta.content
+                        yield sse({'type': 'text_delta', 'content': delta.content})
 
-                        elif btype == 'tool_use':
-                            tc = tool_calls.get(event.index)
-                            if tc:
-                                try:
-                                    tool_input = json.loads(tc['input_json']) if tc['input_json'] else {}
-                                except json.JSONDecodeError:
-                                    tool_input = {}
+                    # ── Tool calls ──────────────────────────
+                    if delta.tool_calls:
+                        # If we were in thinking, close it first
+                        if in_thinking:
+                            in_thinking = False
+                            duration = int((time.time() - thinking_start_time) * 1000) if thinking_start_time else 0
+                            yield sse({'type': 'thinking_end', 'durationMs': duration})
+                            thinking_start_time = None
 
-                                yield sse({
-                                    'type': 'tool_call_start',
-                                    'id': tc['id'],
-                                    'toolName': tc['name'],
-                                    'args': tool_input,
-                                })
-
-                                response_content.append({
-                                    'type': 'tool_use',
-                                    'id': tc['id'],
-                                    'name': tc['name'],
-                                    'input': tool_input,
-                                })
-
-                                # Execute the tool
-                                start_time = time.time()
-                                result = execute_tool(tc['name'], tool_input)
-                                duration = int((time.time() - start_time) * 1000)
-
-                                if 'error' in result and not result.get('results'):
+                        for tc_delta in delta.tool_calls:
+                            idx = tc_delta.index
+                            if idx not in tool_calls_map:
+                                tool_calls_map[idx] = {
+                                    'id': tc_delta.id or '',
+                                    'name': '',
+                                    'arguments': '',
+                                    'started': False,
+                                }
+                            tc = tool_calls_map[idx]
+                            if tc_delta.id:
+                                tc['id'] = tc_delta.id
+                            if tc_delta.function:
+                                if tc_delta.function.name:
+                                    tc['name'] = tc_delta.function.name
+                                    # Emit tool_call_start immediately
+                                    tc['started'] = True
                                     yield sse({
-                                        'type': 'tool_call_error',
+                                        'type': 'tool_call_start',
                                         'id': tc['id'],
-                                        'error': result['error'],
-                                        'durationMs': duration,
+                                        'toolName': tc['name'],
+                                        'args': {},
                                     })
-                                else:
-                                    yield sse({
-                                        'type': 'tool_call_result',
-                                        'id': tc['id'],
-                                        'result': result,
-                                        'durationMs': duration,
-                                    })
+                                if tc_delta.function.arguments:
+                                    tc['arguments'] += tc_delta.function.arguments
+                                    # Stream render_ui args in real-time
+                                    if tc['name'] == 'render_ui':
+                                        yield sse({
+                                            'type': 'render_ui_delta',
+                                            'id': tc['id'],
+                                            'partialArgs': tc['arguments'],
+                                        })
 
-                    elif event.type == 'message_delta':
-                        stop_reason = event.delta.stop_reason
+                # Close thinking if still open at end of stream
+                if in_thinking:
+                    in_thinking = False
+                    duration = int((time.time() - thinking_start_time) * 1000) if thinking_start_time else 0
+                    yield sse({'type': 'thinking_end', 'durationMs': duration})
+                    thinking_start_time = None
 
-                    elif event.type == 'message_stop':
-                        pass
+                # If the model made tool calls, execute them and continue
+                if finish_reason == 'tool_calls' or tool_calls_map:
+                    # Build the assistant message with tool calls
+                    assistant_tool_calls = []
+                    for idx in sorted(tool_calls_map.keys()):
+                        tc = tool_calls_map[idx]
+                        assistant_tool_calls.append({
+                            'id': tc['id'],
+                            'type': 'function',
+                            'function': {
+                                'name': tc['name'],
+                                'arguments': tc['arguments'],
+                            },
+                        })
 
-                # If the model stopped because it wants to use a tool, continue the loop
-                if stop_reason == 'tool_use':
-                    # Build tool results for all tool calls in this turn
-                    tool_result_content = []
-                    for tc in tool_calls.values():
+                    # Build assistant message content
+                    assistant_msg: dict = {'role': 'assistant', 'content': full_text or None}
+                    if full_thinking:
+                        assistant_msg['reasoning_content'] = full_thinking
+                    if assistant_tool_calls:
+                        assistant_msg['tool_calls'] = assistant_tool_calls
+                    api_messages.append(assistant_msg)
+
+                    # Execute each tool and append results
+                    for tc_obj in assistant_tool_calls:
+                        tool_name = tc_obj['function']['name']
                         try:
-                            tool_input = json.loads(tc['input_json']) if tc['input_json'] else {}
+                            tool_input = json.loads(tc_obj['function']['arguments']) if tc_obj['function']['arguments'] else {}
                         except json.JSONDecodeError:
                             tool_input = {}
-                        result = execute_tool(tc['name'], tool_input)
-                        tool_result_content.append({
-                            'type': 'tool_result',
-                            'tool_use_id': tc['id'],
+
+                        # Only emit tool_call_start if not already emitted during streaming
+                        already_started = any(
+                            tc.get('started') and tc['id'] == tc_obj['id']
+                            for tc in tool_calls_map.values()
+                        )
+                        if not already_started:
+                            yield sse({
+                                'type': 'tool_call_start',
+                                'id': tc_obj['id'],
+                                'toolName': tool_name,
+                                'args': tool_input,
+                            })
+
+                        start_time = time.time()
+                        result = execute_tool(tool_name, tool_input)
+                        duration = int((time.time() - start_time) * 1000)
+
+                        if 'error' in result and not result.get('results'):
+                            yield sse({
+                                'type': 'tool_call_error',
+                                'id': tc_obj['id'],
+                                'error': result['error'],
+                                'durationMs': duration,
+                            })
+                        else:
+                            yield sse({
+                                'type': 'tool_call_result',
+                                'id': tc_obj['id'],
+                                'result': result,
+                                'durationMs': duration,
+                            })
+
+                        # Append tool result message for the model
+                        api_messages.append({
+                            'role': 'tool',
+                            'tool_call_id': tc_obj['id'],
                             'content': json.dumps(result),
                         })
 
-                    api_messages.append({'role': 'assistant', 'content': response_content})
-                    api_messages.append({'role': 'user', 'content': tool_result_content})
-
-                    # Reset state for next iteration
-                    block_types = {}
-                    tool_calls = {}
+                    # Update params with new messages and reset state
+                    params['messages'] = api_messages
+                    tool_calls_map = {}
                     full_text = ''
-                    response_content = []
                     continue
                 else:
                     yield sse({'type': 'done'})
@@ -403,23 +444,27 @@ def chat():
                 except Exception as e:
                     logger.warning('DB save failed: %s', e)
 
-        except anthropic.RateLimitError:
-            yield sse({
-                'type': 'error',
-                'error': 'Rate limit exceeded. Please wait and try again.',
-                'retryAfter': 60,
-            })
-        except anthropic.APIStatusError as e:
-            yield sse({
-                'type': 'error',
-                'error': f'API error ({e.status_code}): {e.message}',
-            })
         except Exception as e:
-            logger.exception('Stream error')
-            yield sse({
-                'type': 'error',
-                'error': str(e),
-            })
+            error_msg = str(e)
+            status_code = getattr(e, 'status_code', None)
+
+            if status_code == 429:
+                yield sse({
+                    'type': 'error',
+                    'error': 'Rate limit exceeded. Please wait and try again.',
+                    'retryAfter': 60,
+                })
+            elif status_code:
+                yield sse({
+                    'type': 'error',
+                    'error': f'API error ({status_code}): {error_msg}',
+                })
+            else:
+                logger.exception('Stream error')
+                yield sse({
+                    'type': 'error',
+                    'error': error_msg,
+                })
 
     return Response(
         generate(),
@@ -432,7 +477,7 @@ def chat():
     )
 
 
-# ── Conversation CRUD (Azure Cosmos DB) ─────────────────
+# ── Conversation CRUD (MongoDB Atlas) ───────────────────
 
 @app.route('/api/conversations', methods=['GET'])
 def list_conversations():

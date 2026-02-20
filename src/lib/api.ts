@@ -50,17 +50,18 @@ export async function deleteConversationApi(id: string): Promise<boolean> {
 
 export interface StreamEvent {
   type:
-    | 'thinking_start'
-    | 'thinking_delta'
-    | 'thinking_end'
-    | 'text_start'
-    | 'text_delta'
-    | 'text_end'
-    | 'tool_call_start'
-    | 'tool_call_result'
-    | 'tool_call_error'
-    | 'done'
-    | 'error'
+  | 'thinking_start'
+  | 'thinking_delta'
+  | 'thinking_end'
+  | 'text_start'
+  | 'text_delta'
+  | 'text_end'
+  | 'tool_call_start'
+  | 'tool_call_result'
+  | 'tool_call_error'
+  | 'render_ui_delta'
+  | 'done'
+  | 'error'
   content?: string
   durationMs?: number
   error?: string
@@ -70,6 +71,8 @@ export interface StreamEvent {
   toolName?: string
   args?: Record<string, unknown>
   result?: unknown
+  // render_ui streaming
+  partialArgs?: string
 }
 
 interface ChatRequest {

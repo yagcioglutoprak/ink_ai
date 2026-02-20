@@ -4,7 +4,7 @@ import './styles/globals.css'
 import { useConversations } from './hooks/useConversations'
 import { useArtifacts } from './hooks/useArtifacts'
 import { streamChat } from './lib/api'
-import { normaliseLang } from './lib/artifacts'
+import { normaliseLang, isPreviewable, langLabel } from './lib/artifacts'
 import Sidebar from './components/layout/Sidebar'
 import ChatPanel from './components/layout/ChatPanel'
 import ArtifactPanel from './components/layout/ArtifactPanel'
@@ -36,6 +36,7 @@ export default function App() {
     activeArtifact,
     panelOpen,
     addArtifact,
+    updateArtifactCode,
     selectArtifact,
     closePanel: closeArtifactPanel,
     getConversationArtifacts,
@@ -55,6 +56,7 @@ export default function App() {
 
       const blocks: ContentBlock[] = []
       let fullText = ''
+      let streamingArtifactId: string | null = null
 
       try {
         updateMessage(convId, aiMsgId, { status: 'streaming' })
@@ -96,10 +98,49 @@ export default function App() {
             case 'text_start':
               break
 
-            case 'text_delta':
+            case 'text_delta': {
               fullText += event.content ?? ''
               updateMessage(convId, aiMsgId, { content: fullText })
+
+              // ── Live artifact streaming ──────────────────
+              // Detect code fences (open or closed) and push code to the artifact panel
+              const fenceStart = fullText.match(/```(\w+)[^\n]*\n/)
+              if (fenceStart) {
+                const lang = fenceStart[1]
+                const normLang = normaliseLang(lang)
+                if (isPreviewable(normLang)) {
+                  const codeStartIdx = fullText.indexOf(fenceStart[0]) + fenceStart[0].length
+                  // Find closing fence if it exists
+                  const closingIdx = fullText.indexOf('\n```', codeStartIdx)
+                  const liveCode = closingIdx >= 0
+                    ? fullText.slice(codeStartIdx, closingIdx)
+                    : fullText.slice(codeStartIdx)
+
+                  if (liveCode.length >= 5) {
+                    if (!streamingArtifactId) {
+                      // Open artifact panel with initial code
+                      const label = langLabel(normLang)
+                      const artId = `artifact-stream-${Date.now()}-${Math.random().toString(36).slice(2)}`
+                      streamingArtifactId = artId
+                      addArtifact({
+                        id: artId,
+                        conversationId: convId,
+                        messageId: aiMsgId,
+                        type: normLang,
+                        title: `${label} snippet`,
+                        code: liveCode,
+                        version: 1,
+                        createdAt: Date.now(),
+                      })
+                    } else {
+                      // Push incremental update
+                      updateArtifactCode(streamingArtifactId, liveCode)
+                    }
+                  }
+                }
+              }
               break
+            }
 
             case 'text_end':
               break
@@ -114,6 +155,103 @@ export default function App() {
                 status: 'running',
               }
               blocks.push(tcBlock)
+              updateMessage(convId, aiMsgId, { blocks: [...blocks] })
+              break
+            }
+
+            // ── Real-time render_ui streaming ────────────
+            case 'render_ui_delta': {
+              const partialArgs = event.partialArgs ?? ''
+
+              // Try to parse the accumulated args
+              let parsed: Record<string, unknown> = {}
+              let mode = ''
+              let partialCode = ''
+              let caption = ''
+              let widgetType = ''
+              let widgetProps: Record<string, unknown> | undefined
+
+              try {
+                parsed = JSON.parse(partialArgs)
+                mode = (parsed.mode as string) ?? ''
+                partialCode = (parsed.code as string) ?? ''
+                caption = (parsed.caption as string) ?? ''
+                widgetType = (parsed.widget_type as string) ?? ''
+                widgetProps = parsed.props as Record<string, unknown> | undefined
+              } catch {
+                // Partial JSON — extract via regex
+                const modeMatch = partialArgs.match(/"mode"\s*:\s*"([^"]*)"/)
+                mode = modeMatch?.[1] ?? ''
+                const captionMatch = partialArgs.match(/"caption"\s*:\s*"([^"]*)"/)
+                caption = captionMatch?.[1] ?? ''
+                const wtMatch = partialArgs.match(/"widget_type"\s*:\s*"([^"]*)"/)
+                widgetType = wtMatch?.[1] ?? ''
+
+                // Extract partial code for generated mode
+                const codeStart = partialArgs.indexOf('"code":"')
+                if (codeStart !== -1) {
+                  let raw = partialArgs.slice(codeStart + 8)
+                  if (raw.endsWith('}')) raw = raw.slice(0, -1)
+                  if (raw.endsWith('"')) raw = raw.slice(0, -1)
+                  try {
+                    partialCode = JSON.parse('"' + raw + '"')
+                  } catch {
+                    partialCode = raw.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\')
+                  }
+                }
+              }
+
+              // Update the ToolCallBlock's args so tool_call_result can read them
+              const tcForArgs = blocks.find(
+                (b): b is ToolCallBlock => b.type === 'tool_call' && b.id === event.id,
+              )
+              if (tcForArgs) {
+                tcForArgs.args = Object.keys(parsed).length > 0
+                  ? parsed
+                  : { mode, code: partialCode, caption, widget_type: widgetType }
+              }
+
+              // For generated mode: show live code preview
+              if (mode === 'generated' && partialCode) {
+                const existingIdx = blocks.findIndex(
+                  (b) => b.type === 'generative_ui' && (b as GenerativeUIBlock).mode === 'generated'
+                    && (b as { _streamId?: string })._streamId === event.id
+                )
+                const uiBlock: GenerativeUIBlock & { _streamId?: string } = {
+                  type: 'generative_ui',
+                  mode: 'generated',
+                  code: partialCode,
+                  caption: caption || 'Generating...',
+                  _streamId: event.id,
+                }
+                if (existingIdx >= 0) {
+                  blocks[existingIdx] = uiBlock
+                } else {
+                  blocks.push(uiBlock)
+                }
+              }
+
+              // For widget mode: show widget as soon as we have type + props
+              if (mode === 'widget' && widgetType && widgetProps) {
+                const existingIdx = blocks.findIndex(
+                  (b) => b.type === 'generative_ui' && (b as GenerativeUIBlock).mode === 'widget'
+                    && (b as { _streamId?: string })._streamId === event.id
+                )
+                const uiBlock: GenerativeUIBlock & { _streamId?: string } = {
+                  type: 'generative_ui',
+                  mode: 'widget',
+                  widgetType,
+                  props: widgetProps,
+                  caption,
+                  _streamId: event.id,
+                }
+                if (existingIdx >= 0) {
+                  blocks[existingIdx] = uiBlock
+                } else {
+                  blocks.push(uiBlock)
+                }
+              }
+
               updateMessage(convId, aiMsgId, { blocks: [...blocks] })
               break
             }
@@ -136,22 +274,34 @@ export default function App() {
                     code?: string
                     caption?: string
                   }
+
+                  // Check if render_ui_delta already created one
+                  const existingStreamIdx = blocks.findIndex(
+                    (b) => b.type === 'generative_ui'
+                      && (b as { _streamId?: string })._streamId === tc.id
+                  )
+
                   const uiBlock: GenerativeUIBlock =
                     args.mode === 'generated' && args.code
                       ? {
-                          type: 'generative_ui',
-                          mode: 'generated',
-                          code: args.code,
-                          caption: args.caption,
-                        }
+                        type: 'generative_ui',
+                        mode: 'generated',
+                        code: args.code,
+                        caption: args.caption,
+                      }
                       : {
-                          type: 'generative_ui',
-                          mode: 'widget',
-                          widgetType: args.widget_type,
-                          props: args.props,
-                          caption: args.caption,
-                        }
-                  blocks.push(uiBlock)
+                        type: 'generative_ui',
+                        mode: 'widget',
+                        widgetType: args.widget_type,
+                        props: args.props,
+                        caption: args.caption,
+                      }
+
+                  if (existingStreamIdx >= 0) {
+                    blocks[existingStreamIdx] = uiBlock
+                  } else {
+                    blocks.push(uiBlock)
+                  }
                 }
 
                 updateMessage(convId, aiMsgId, { blocks: [...blocks] })
@@ -173,13 +323,27 @@ export default function App() {
             }
 
             // ── Done / Error ──────────────────────────
-            case 'done':
+            case 'done': {
               updateMessage(convId, aiMsgId, {
                 content: fullText,
                 status: 'done',
                 blocks: [...blocks],
               })
+
+              // Final artifact sync — ensure panel has the complete code
+              if (streamingArtifactId) {
+                const fenceStart = fullText.match(/```(\w+)[^\n]*\n/)
+                if (fenceStart) {
+                  const codeStartIdx = fullText.indexOf(fenceStart[0]) + fenceStart[0].length
+                  const closingIdx = fullText.indexOf('\n```', codeStartIdx)
+                  const finalCode = closingIdx >= 0
+                    ? fullText.slice(codeStartIdx, closingIdx)
+                    : fullText.slice(codeStartIdx)
+                  updateArtifactCode(streamingArtifactId, finalCode.trimEnd())
+                }
+              }
               break
+            }
 
             case 'error':
               updateMessage(convId, aiMsgId, {
@@ -203,7 +367,7 @@ export default function App() {
         abortRef.current = null
       }
     },
-    [updateMessage],
+    [updateMessage, addArtifact, updateArtifactCode],
   )
 
   /* ── Send a message ───────────────────────────────── */
@@ -356,6 +520,7 @@ export default function App() {
             allArtifacts={conversationArtifacts}
             onClose={closeArtifactPanel}
             onSelectArtifact={selectArtifact}
+            isStreaming={isStreaming}
           />
         )}
       </AnimatePresence>

@@ -9,6 +9,7 @@ interface ArtifactPanelProps {
   allArtifacts: Artifact[]
   onClose: () => void
   onSelectArtifact: (id: string) => void
+  isStreaming?: boolean
 }
 
 const MIN_WIDTH = 360
@@ -20,6 +21,7 @@ export default function ArtifactPanel({
   allArtifacts,
   onClose,
   onSelectArtifact,
+  isStreaming,
 }: ArtifactPanelProps) {
   const [width, setWidth] = useState(DEFAULT_WIDTH)
   const dragging = useRef(false)
@@ -138,6 +140,7 @@ export default function ArtifactPanel({
         allArtifacts={allArtifacts}
         onClose={onClose}
         onSelectArtifact={onSelectArtifact}
+        isStreaming={isStreaming}
       />
     </motion.aside>
   )

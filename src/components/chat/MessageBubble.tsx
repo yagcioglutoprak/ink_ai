@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { Copy, Check, RefreshCw, AlertCircle, Code2, Eye } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
@@ -32,6 +32,36 @@ export default function MessageBubble({ message, accentColor = '#FFE500', onRege
     document.addEventListener('click', close)
     return () => document.removeEventListener('click', close)
   }, [contextMenu])
+
+  // Track which code blocks we've already auto-opened
+  const autoOpenedRef = useRef<Set<string>>(new Set())
+
+  // Auto-open first code block as artifact during streaming
+  useEffect(() => {
+    if (message.role !== 'assistant' || message.status !== 'streaming' || !onOpenArtifact) return
+
+    const content = message.content
+    // Find all completed code fences
+    const regex = /```(\w+)[^\n]*\n([\s\S]*?)```/g
+    let match: RegExpExecArray | null
+
+    while ((match = regex.exec(content)) !== null) {
+      const lang = match[1]
+      const code = match[2].trimEnd()
+      if (code.length < 10) continue
+
+      const blockKey = `${match.index}-${lang}`
+      if (autoOpenedRef.current.has(blockKey)) continue
+
+      const normLang = normaliseLang(lang)
+      if (!isPreviewable(normLang)) continue
+
+      autoOpenedRef.current.add(blockKey)
+      const label = langLabel(normLang)
+      onOpenArtifact(lang, code, `${label} snippet`)
+      break // only auto-open the first new one
+    }
+  }, [message.content, message.status, message.role, onOpenArtifact])
 
   const isUser = message.role === 'user'
   const isStreaming = message.status === 'streaming'
@@ -121,7 +151,11 @@ export default function MessageBubble({ message, accentColor = '#FFE500', onRege
         {!isUser && toolCallBlocks.length > 0 && (
           <div style={{ width: '100%' }}>
             {toolCallBlocks.map((block) => (
-              <ToolCallCard key={block.id} block={block} />
+              <ToolCallCard
+                key={block.id}
+                block={block}
+                forceCollapsed={!!message.content || thinkingBlocks.some(t => !!t.durationMs)}
+              />
             ))}
           </div>
         )}
@@ -228,7 +262,17 @@ export default function MessageBubble({ message, accentColor = '#FFE500', onRege
                     },
                   } : undefined}
                 >
-                  {message.content}
+                  {(() => {
+                    // Auto-close unclosed code fences during streaming
+                    // so ReactMarkdown can parse them as code blocks
+                    const content = message.content
+                    if (!isStreaming) return content
+                    const fenceMatches = content.match(/^```/gm)
+                    if (fenceMatches && fenceMatches.length % 2 !== 0) {
+                      return content + '\n```'
+                    }
+                    return content
+                  })()}
                 </ReactMarkdown>
                 {/* Streaming cursor */}
                 {isStreaming && (

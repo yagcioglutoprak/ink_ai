@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Maximize2, Minimize2, Code2, Eye, Terminal } from 'lucide-react'
 import { springs, shadows } from '../../lib/theme'
@@ -13,6 +13,7 @@ interface ArtifactViewerProps {
   allArtifacts: Artifact[]
   onClose: () => void
   onSelectArtifact: (id: string) => void
+  isStreaming?: boolean
 }
 
 type TabId = 'code' | 'preview' | 'console'
@@ -22,17 +23,41 @@ export default function ArtifactViewer({
   allArtifacts,
   onClose,
   onSelectArtifact,
+  isStreaming,
 }: ArtifactViewerProps) {
   const [activeTab, setActiveTab] = useState<TabId>('code')
   const [fullscreen, setFullscreen] = useState(false)
   const [consoleEntries, setConsoleEntries] = useState<ConsoleEntry[]>([])
+  const [userOverrodeTab, setUserOverrodeTab] = useState(false)
+  const prevStreamingRef = useRef(isStreaming)
 
   const canPreview = isPreviewable(artifact.type)
 
-  // Auto-switch to preview tab when artifact changes and is previewable
+  // Track user manual tab switches
+  const handleTabSwitch = (tabId: TabId) => {
+    setActiveTab(tabId)
+    setUserOverrodeTab(true)
+  }
+
+  // When a new artifact opens: start on code tab if streaming, preview if not
   useEffect(() => {
-    if (canPreview) setActiveTab('preview')
-  }, [artifact.id, canPreview])
+    setUserOverrodeTab(false)
+    if (isStreaming) {
+      setActiveTab('code')
+    } else if (canPreview) {
+      setActiveTab('preview')
+    }
+  }, [artifact.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-switch to preview when streaming finishes (true → false)
+  useEffect(() => {
+    const wasStreaming = prevStreamingRef.current
+    prevStreamingRef.current = isStreaming
+
+    if (wasStreaming && !isStreaming && canPreview && !userOverrodeTab) {
+      setActiveTab('preview')
+    }
+  }, [isStreaming, canPreview, userOverrodeTab])
 
   const handleConsoleLog = useCallback((entry: ConsoleEntry) => {
     setConsoleEntries((prev) => [...prev, entry])
@@ -195,7 +220,7 @@ export default function ArtifactViewer({
         {tabs.map((tab) => (
           <button
             key={tab.id}
-            onClick={() => !tab.disabled && setActiveTab(tab.id)}
+            onClick={() => !tab.disabled && handleTabSwitch(tab.id)}
             disabled={tab.disabled}
             style={{
               display: 'flex',
@@ -242,7 +267,7 @@ export default function ArtifactViewer({
 
       {/* Tab content */}
       <div style={{ flex: 1, overflow: 'hidden' }}>
-        {activeTab === 'code' && <CodeTab artifact={artifact} />}
+        {activeTab === 'code' && <CodeTab artifact={artifact} isStreaming={isStreaming} />}
         {activeTab === 'preview' && (
           <PreviewTab artifact={artifact} onConsoleLog={handleConsoleLog} />
         )}

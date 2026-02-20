@@ -49,12 +49,20 @@ export function useArtifacts() {
     [artifacts],
   )
 
+  /** Update an existing artifact's code in-place (for streaming) */
+  const updateArtifactCode = useCallback((id: string, code: string) => {
+    setArtifacts((prev) =>
+      prev.map((a) => (a.id === id ? { ...a, code } : a)),
+    )
+  }, [])
+
   return {
     artifacts,
     activeArtifact,
     activeArtifactId,
     panelOpen,
     addArtifact,
+    updateArtifactCode,
     selectArtifact,
     closePanel,
     togglePanel,
