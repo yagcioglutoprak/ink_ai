@@ -1,6 +1,12 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import type { Conversation, Message, GenerativeUIBlock, ToolCallBlock } from '../types'
 import { getConversationAccent } from '../lib/theme'
+import {
+  fetchConversations as apiFetchConversations,
+  fetchConversation as apiFetchConversation,
+  saveConversation as apiSaveConversation,
+  deleteConversationApi,
+} from '../lib/api'
 
 function uid() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36)
@@ -326,7 +332,10 @@ export function useConversations() {
   const [activeId, setActiveId] = useState<string | null>(
     () => loadFromStorage(STORAGE_KEY_ACTIVE_ID, null)
   )
+  const [dbAvailable, setDbAvailable] = useState(false)
+  const syncedRef = useRef(false)
 
+  // Persist to localStorage
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY_CONVERSATIONS, JSON.stringify(conversations))
   }, [conversations])
@@ -335,22 +344,60 @@ export function useConversations() {
     localStorage.setItem(STORAGE_KEY_ACTIVE_ID, JSON.stringify(activeId))
   }, [activeId])
 
+  // Load from Azure DB on mount (merge with localStorage)
+  useEffect(() => {
+    if (syncedRef.current) return
+    syncedRef.current = true
+
+    async function loadFromDb() {
+      const summaries = await apiFetchConversations()
+      if (!summaries || summaries.length === 0) return
+
+      setDbAvailable(true)
+
+      // Fetch full conversations with messages
+      const full = await Promise.all(
+        summaries.map((s) => apiFetchConversation(s.id))
+      )
+      const dbConversations = full.filter((c): c is Conversation => c !== null)
+      if (dbConversations.length === 0) return
+
+      setConversations((local) => {
+        // Merge: DB conversations take priority, keep local-only ones
+        const dbIds = new Set(dbConversations.map((c) => c.id))
+        const localOnly = local.filter((c) => !dbIds.has(c.id))
+        const merged = [...dbConversations, ...localOnly]
+        merged.sort((a, b) => b.updatedAt - a.updatedAt)
+        return merged
+      })
+    }
+
+    loadFromDb()
+  }, [])
+
+  // Background sync helper
+  const syncToDb = useCallback((conv: Conversation) => {
+    if (!dbAvailable) return
+    apiSaveConversation(conv).catch(() => {})
+  }, [dbAvailable])
+
   const activeConversation = conversations.find((c) => c.id === activeId) ?? null
 
   const createConversation = useCallback(() => {
     const c = makeConversation()
     setConversations((prev) => [c, ...prev])
     setActiveId(c.id)
+    syncToDb(c)
     return c
-  }, [])
+  }, [syncToDb])
 
   const selectConversation = useCallback((id: string) => {
     setActiveId(id)
   }, [])
 
   const addMessage = useCallback((conversationId: string, message: Message) => {
-    setConversations((prev) =>
-      prev.map((c) =>
+    setConversations((prev) => {
+      const updated = prev.map((c) =>
         c.id === conversationId
           ? {
               ...c,
@@ -362,8 +409,11 @@ export function useConversations() {
             }
           : c
       )
-    )
-  }, [])
+      const conv = updated.find((c) => c.id === conversationId)
+      if (conv) syncToDb(conv)
+      return updated
+    })
+  }, [syncToDb])
 
   const updateMessage = useCallback((conversationId: string, messageId: string, patch: Partial<Message>) => {
     setConversations((prev) =>
@@ -378,11 +428,14 @@ export function useConversations() {
           : c
       )
     )
+    // Note: we don't sync on every streaming delta — too frequent.
+    // The backend already saves the final assistant response in the /api/chat endpoint.
   }, [])
 
   const deleteConversation = useCallback((id: string) => {
     setConversations((prev) => prev.filter((c) => c.id !== id))
     setActiveId((prev) => (prev === id ? null : prev))
+    deleteConversationApi(id).catch(() => {})
   }, [])
 
   /** Reset an AI message and remove all messages after it (for regeneration). */

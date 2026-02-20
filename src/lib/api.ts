@@ -1,4 +1,52 @@
-/** SSE streaming client for /api/chat */
+/** API client — SSE streaming + conversation CRUD */
+
+import type { Conversation } from '../types'
+
+/* ── Conversation CRUD ──────────────────────────────────── */
+
+export async function fetchConversations(): Promise<Conversation[] | null> {
+  try {
+    const res = await fetch('/api/conversations')
+    if (!res.ok) return null
+    return await res.json()
+  } catch {
+    return null
+  }
+}
+
+export async function fetchConversation(id: string): Promise<Conversation | null> {
+  try {
+    const res = await fetch(`/api/conversations/${id}`)
+    if (!res.ok) return null
+    return await res.json()
+  } catch {
+    return null
+  }
+}
+
+export async function saveConversation(conversation: Conversation): Promise<boolean> {
+  try {
+    const res = await fetch('/api/conversations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(conversation),
+    })
+    return res.ok
+  } catch {
+    return false
+  }
+}
+
+export async function deleteConversationApi(id: string): Promise<boolean> {
+  try {
+    const res = await fetch(`/api/conversations/${id}`, { method: 'DELETE' })
+    return res.ok
+  } catch {
+    return false
+  }
+}
+
+/* ── SSE streaming client for /api/chat ─────────────────── */
 
 export interface StreamEvent {
   type:

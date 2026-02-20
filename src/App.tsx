@@ -63,6 +63,7 @@ export default function App() {
           {
             messages: apiMessages,
             tools: enableTools,
+            conversationId: convId,
           },
           signal,
         )) {
