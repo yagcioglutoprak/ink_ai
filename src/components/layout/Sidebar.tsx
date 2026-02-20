@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Plus, Trash2, PanelLeftClose, PanelLeft } from 'lucide-react'
 import { springs, stagger, shadows } from '../../lib/theme'
@@ -33,6 +33,12 @@ export default function Sidebar({
 }: SidebarProps) {
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768)
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth <= 768)
+    window.addEventListener('resize', handler)
+    return () => window.removeEventListener('resize', handler)
+  }, [])
 
   return (
     <AnimatePresence initial={false}>
@@ -44,17 +50,17 @@ export default function Sidebar({
           exit={{ x: -280, opacity: 0 }}
           transition={springs.smooth}
           style={{
-            width: 280,
-            minWidth: 280,
+            width: isMobile ? '100vw' : 280,
+            minWidth: isMobile ? '100vw' : 280,
             height: '100%',
             background: '#FFFCF0',
             borderRight: '3px solid #000',
             display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden',
-            position: 'relative',
-            zIndex: 20,
+            zIndex: isMobile ? 50 : 20,
             flexShrink: 0,
+            ...(isMobile ? { position: 'fixed' as const, inset: 0 } : { position: 'relative' as const }),
           }}
         >
           {/* ── Header ──────────────────────────────── */}

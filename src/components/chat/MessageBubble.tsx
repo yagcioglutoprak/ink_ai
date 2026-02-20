@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Copy, Check, RefreshCw, AlertCircle, Code2, Eye } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
@@ -24,6 +24,14 @@ function formatTime(ts: number): string {
 export default function MessageBubble({ message, accentColor = '#FFE500', onRegenerate, onOpenArtifact }: MessageBubbleProps) {
   const [copied, setCopied] = useState(false)
   const [showActions, setShowActions] = useState(false)
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
+
+  useEffect(() => {
+    if (!contextMenu) return
+    const close = () => setContextMenu(null)
+    document.addEventListener('click', close)
+    return () => document.removeEventListener('click', close)
+  }, [contextMenu])
 
   const isUser = message.role === 'user'
   const isStreaming = message.status === 'streaming'
@@ -54,6 +62,10 @@ export default function MessageBubble({ message, accentColor = '#FFE500', onRege
       transition={springs.bouncy}
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
+      onContextMenu={(e) => {
+        e.preventDefault()
+        setContextMenu({ x: e.clientX, y: e.clientY })
+      }}
       style={{
         display: 'flex',
         flexDirection: isUser ? 'row-reverse' : 'row',
@@ -276,6 +288,59 @@ export default function MessageBubble({ message, accentColor = '#FFE500', onRege
           )}
         </motion.div>
       </div>
+
+      {/* Context menu */}
+      {contextMenu && (
+        <div
+          style={{
+            position: 'fixed',
+            top: contextMenu.y,
+            left: contextMenu.x,
+            background: '#000',
+            border: '2px solid #000',
+            boxShadow: '3px 3px 0 #FFE500',
+            fontFamily: 'var(--font-mono)',
+            fontSize: 10,
+            letterSpacing: '0.08em',
+            zIndex: 9999,
+          }}
+        >
+          <div
+            onClick={(e) => {
+              e.stopPropagation()
+              handleCopy()
+              setContextMenu(null)
+            }}
+            style={{
+              padding: '8px 16px',
+              color: '#FFE500',
+              cursor: 'pointer',
+            }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = '#222' }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'transparent' }}
+          >
+            COPY
+          </div>
+          {!isUser && onRegenerate && (
+            <div
+              onClick={(e) => {
+                e.stopPropagation()
+                onRegenerate()
+                setContextMenu(null)
+              }}
+              style={{
+                padding: '8px 16px',
+                color: '#FFE500',
+                cursor: 'pointer',
+              }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = '#222' }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'transparent' }}
+            >
+              REGENERATE
+            </div>
+          )}
+        </div>
+      )}
     </motion.div>
   )
 }

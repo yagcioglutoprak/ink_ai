@@ -268,3 +268,18 @@ body {
 .mesh-bg {
   background: var(--color-bg);
 }
+
+/* ── Mobile Responsive ────────────────────────────────── */
+@media (max-width: 768px) {
+  :root {
+    --sidebar-width: 100vw;
+  }
+
+  .md-content pre {
+    font-size: 11px;
+  }
+
+  .md-content pre code {
+    font-size: 11px;
+  }
+}
