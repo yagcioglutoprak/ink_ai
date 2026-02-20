@@ -74,13 +74,68 @@ WEB_SEARCH_TOOL = {
     },
 }
 
-TOOLS = [WEB_SEARCH_TOOL]
+RENDER_UI_TOOL = {
+    'name': 'render_ui',
+    'description': (
+        'Render a live interactive UI widget inline in the chat. Use this when structured '
+        'visual output would answer the user better than plain text — for example color palettes, '
+        'comparison tables, pros/cons lists, or progress trackers.\n\n'
+        'Available widget types and their props:\n\n'
+        '1. ColorPalette — Show color swatches.\n'
+        '   props: { "colors": [{ "name": "Sand", "hex": "#C8A97E", "role": "background" }, ...] }\n\n'
+        '2. ComparisonTable — Compare items across criteria.\n'
+        '   props: { "items": ["React", "Vue"], "criteria": [{ "label": "Speed", "values": ["Fast", "Fast"] }] }\n\n'
+        '3. ProsConsList — Show pros and cons.\n'
+        '   props: { "topic": "TypeScript", "pros": ["Type safety", ...], "cons": ["Verbose", ...] }\n\n'
+        '4. ProgressTracker — Track steps.\n'
+        '   props: { "steps": [{ "label": "Step 1", "done": true }, { "label": "Step 2", "done": false }] }\n\n'
+        'You may also generate arbitrary React JSX components by setting mode to "generated" and '
+        'providing code. The code runs in a sandboxed iframe with React 18. '
+        'Use the global `render(<Component />)` function to mount. '
+        'A `ds` design system object is available with colors, shadows, fonts, and helpers like '
+        'ds.card(), ds.btn(), ds.stamp, ds.heading(size). '
+        'Available hooks: useState, useEffect, useRef, useCallback, useMemo, useReducer.'
+    ),
+    'input_schema': {
+        'type': 'object',
+        'properties': {
+            'mode': {
+                'type': 'string',
+                'enum': ['widget', 'generated'],
+                'description': 'widget = use a pre-built widget type, generated = provide custom JSX code.',
+            },
+            'widget_type': {
+                'type': 'string',
+                'enum': ['ColorPalette', 'ComparisonTable', 'ProsConsList', 'ProgressTracker'],
+                'description': 'Required when mode=widget. The widget to render.',
+            },
+            'props': {
+                'type': 'object',
+                'description': 'Required when mode=widget. The props object for the chosen widget.',
+            },
+            'code': {
+                'type': 'string',
+                'description': 'Required when mode=generated. Raw JSX component code. Must call render(<Component />) at the end.',
+            },
+            'caption': {
+                'type': 'string',
+                'description': 'Optional short caption shown above the widget.',
+            },
+        },
+        'required': ['mode'],
+    },
+}
+
+TOOLS_SEARCH = [WEB_SEARCH_TOOL]
+TOOLS_UI = [RENDER_UI_TOOL]
 
 
 def execute_tool(tool_name: str, tool_input: dict) -> dict:
     """Execute a tool call and return the result."""
     if tool_name == 'web_search':
         return execute_web_search(tool_input.get('query', ''))
+    if tool_name == 'render_ui':
+        return {'rendered': True}
     return {'error': f'Unknown tool: {tool_name}'}
 
 
@@ -151,13 +206,29 @@ def chat():
             }
 
             system_prompt = os.environ.get('SYSTEM_PROMPT', '')
+
+            # Always include render_ui tool for generative UI
+            tools = list(TOOLS_UI)
+
+            # Add web search tool when enabled
             if enable_tools:
+                tools.extend(TOOLS_SEARCH)
                 system_prompt = (system_prompt + '\n\n' if system_prompt else '') + (
                     'You have access to a web_search tool. Use it when the user asks about '
                     'recent events, needs current data, or when your knowledge may be outdated. '
                     'Always cite your sources with URLs when using search results.'
                 )
-                params['tools'] = TOOLS
+
+            # Widget catalogue guidance
+            system_prompt = (system_prompt + '\n\n' if system_prompt else '') + (
+                'You have a render_ui tool that renders live interactive widgets inline in the chat. '
+                'PREFER render_ui over plain text when the answer involves structured data like '
+                'comparisons, color palettes, pros/cons, step tracking, or interactive components. '
+                'For complex or custom UI (calculators, visualizations, games), use mode="generated" '
+                'and write React JSX code.'
+            )
+
+            params['tools'] = tools
 
             if system_prompt:
                 params['system'] = system_prompt

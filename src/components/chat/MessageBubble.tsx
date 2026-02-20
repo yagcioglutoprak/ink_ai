@@ -43,7 +43,7 @@ export default function MessageBubble({ message, accentColor = '#FFE500', onRege
     (b): b is ThinkingBlockType => b.type === 'thinking'
   )
   const toolCallBlocks = (message.blocks ?? []).filter(
-    (b): b is ToolCallBlockType => b.type === 'tool_call'
+    (b): b is ToolCallBlockType => b.type === 'tool_call' && b.toolName !== 'render_ui'
   )
   const uiBlocks = (message.blocks ?? []).filter(
     (b): b is GenerativeUIBlock => b.type === 'generative_ui'

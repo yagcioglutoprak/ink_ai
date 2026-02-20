@@ -8,7 +8,7 @@ import { normaliseLang } from './lib/artifacts'
 import Sidebar from './components/layout/Sidebar'
 import ChatPanel from './components/layout/ChatPanel'
 import ArtifactPanel from './components/layout/ArtifactPanel'
-import type { Message, ContentBlock, ToolCallBlock } from './types'
+import type { Message, ContentBlock, ToolCallBlock, GenerativeUIBlock } from './types'
 
 function uid() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36)
@@ -125,6 +125,34 @@ export default function App() {
                 tc.status = 'success'
                 tc.result = event.result as ToolCallBlock['result']
                 tc.durationMs = event.durationMs
+
+                // Convert render_ui tool calls into GenerativeUIBlocks
+                if (tc.toolName === 'render_ui') {
+                  const args = tc.args as {
+                    mode?: string
+                    widget_type?: string
+                    props?: Record<string, unknown>
+                    code?: string
+                    caption?: string
+                  }
+                  const uiBlock: GenerativeUIBlock =
+                    args.mode === 'generated' && args.code
+                      ? {
+                          type: 'generative_ui',
+                          mode: 'generated',
+                          code: args.code,
+                          caption: args.caption,
+                        }
+                      : {
+                          type: 'generative_ui',
+                          mode: 'widget',
+                          widgetType: args.widget_type,
+                          props: args.props,
+                          caption: args.caption,
+                        }
+                  blocks.push(uiBlock)
+                }
+
                 updateMessage(convId, aiMsgId, { blocks: [...blocks] })
               }
               break
