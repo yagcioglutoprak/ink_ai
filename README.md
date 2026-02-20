@@ -1,73 +1,115 @@
-# React + TypeScript + Vite
+# INK.AI
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A neo-brutalist AI chat interface with streaming responses, live code previews, and generative UI widgets.
 
-Currently, two official plugins are available:
+Built with React 18, TypeScript, Vite, and Framer Motion.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+---
 
-## React Compiler
+## Features
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- **Streaming AI Chat** — Real-time token-by-token streaming with Claude (Anthropic) via Vercel AI SDK patterns
+- **Extended Thinking** — Collapsible thinking blocks show AI reasoning with duration tracking
+- **Tool Calls** — Web search integration with Tavily API, rendered as interactive cards
+- **Artifacts Panel** — Code blocks open in a split-panel viewer with syntax highlighting (Shiki) and live HTML/CSS/JS preview via sandboxed iframe
+- **Generative UI** — AI can render pre-built widgets inline (color palettes, comparison tables, pros/cons lists, calculators) or generate arbitrary JSX executed in a sandbox
+- **Conversation Management** — Multiple conversations with color-coded accents, persisted to localStorage
+- **Keyboard Shortcuts** — `Cmd+K` new chat, `Cmd+/` focus input, `Escape` close panels
+- **Mobile Responsive** — Full-screen overlays for sidebar and artifact panel on small screens
+- **Neo-Brutalist Design** — Flat colors, hard shadows, thick borders, Bebas Neue + DM Mono typography
 
-## Expanding the ESLint configuration
+## Tech Stack
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+| Layer | Technology |
+|---|---|
+| Framework | React 18 + TypeScript |
+| Build | Vite |
+| Styling | Tailwind CSS 4 + CSS custom properties |
+| Animations | Framer Motion |
+| AI Backend | Express + Vercel AI SDK + Anthropic |
+| Code Highlighting | Shiki |
+| Markdown | react-markdown + remark-gfm |
+| Icons | Lucide React |
+| Web Search | Tavily API |
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## Getting Started
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+### Prerequisites
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+- Node.js 18+
+- An Anthropic API key
+- (Optional) A Tavily API key for web search
+
+### Setup
+
+```bash
+# Clone and install
+git clone <repo-url>
+cd ai-chat-app
+npm install
+
+# Configure environment
+cp .env.example .env
+# Edit .env with your API keys
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### Environment Variables
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
 ```
+ANTHROPIC_API_KEY=sk-ant-...
+TAVILY_API_KEY=tvly-...          # Optional, for web search
+PORT=3001                         # Server port
+```
+
+### Development
+
+```bash
+# Start the backend server
+npm run server
+
+# In another terminal, start the frontend
+npm run dev
+```
+
+Open [http://localhost:5173](http://localhost:5173) in your browser.
+
+### Build
+
+```bash
+npm run build
+npm run preview
+```
+
+## Project Structure
+
+```
+src/
+├── components/
+│   ├── artifacts/       # Code viewer, preview, console tabs
+│   ├── chat/            # Messages, input, empty state
+│   ├── generative-ui/   # AI-rendered widgets (ColorPalette, etc.)
+│   ├── layout/          # Sidebar, ChatPanel, ArtifactPanel
+│   └── ui/              # Shared UI primitives
+├── hooks/               # useConversations, useArtifacts
+├── lib/                 # API client, theme, artifact utils, Shiki
+├── styles/              # Global CSS, animations
+└── types/               # TypeScript interfaces
+server/
+├── index.ts             # Express server
+└── routes/
+    └── chat.ts          # /api/chat streaming endpoint
+```
+
+## Keyboard Shortcuts
+
+| Shortcut | Action |
+|---|---|
+| `Cmd/Ctrl + K` | New conversation |
+| `Cmd/Ctrl + /` | Focus message input |
+| `Escape` | Close artifact panel |
+| `Enter` | Send message |
+| `Shift + Enter` | New line in input |
+
+## License
+
+MIT
