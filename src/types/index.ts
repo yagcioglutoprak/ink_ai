@@ -25,7 +25,25 @@ export interface ToolCallBlock {
   durationMs?: number
 }
 
-export type ContentBlock = ThinkingBlock | TextBlock | ToolCallBlock
+/**
+ * renderUI — AI picks a pre-built widget from the catalogue
+ * generateComponent — AI writes arbitrary JSX, executed in a sandbox
+ */
+export interface GenerativeUIBlock {
+  type: 'generative_ui'
+  /** 'widget' = pre-built catalogue, 'generated' = AI-written JSX */
+  mode: 'widget' | 'generated'
+  /** For mode='widget': the catalogue key (e.g. 'ColorPalette') */
+  widgetType?: string
+  /** For mode='widget': props passed to the pre-built component */
+  props?: Record<string, unknown>
+  /** For mode='generated': raw JSX string the AI produced */
+  code?: string
+  /** Optional caption shown above the widget */
+  caption?: string
+}
+
+export type ContentBlock = ThinkingBlock | TextBlock | ToolCallBlock | GenerativeUIBlock
 
 export interface Message {
   id: string

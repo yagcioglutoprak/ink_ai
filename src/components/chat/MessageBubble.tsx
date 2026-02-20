@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { Copy, Check, RefreshCw } from 'lucide-react'
 import { springs, shadows } from '../../lib/theme'
-import type { Message } from '../../types'
+import type { Message, GenerativeUIBlock } from '../../types'
+import GenerativeUIRenderer from '../generative-ui/GenerativeUIRenderer'
 
 interface MessageBubbleProps {
   message: Message
@@ -21,6 +22,11 @@ export default function MessageBubble({ message, accentColor = '#FFE500', onRege
   const isUser = message.role === 'user'
   const isStreaming = message.status === 'streaming'
   const isPending = message.status === 'pending'
+
+  // Extract generative UI blocks from message.blocks
+  const uiBlocks = (message.blocks ?? []).filter(
+    (b): b is GenerativeUIBlock => b.type === 'generative_ui'
+  )
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(message.content)
@@ -122,6 +128,15 @@ export default function MessageBubble({ message, accentColor = '#FFE500', onRege
             />
           )}
         </motion.div>
+
+        {/* Generative UI blocks */}
+        {uiBlocks.length > 0 && (
+          <div style={{ width: '100%' }}>
+            {uiBlocks.map((block, i) => (
+              <GenerativeUIRenderer key={i} block={block} accentColor={accentColor} />
+            ))}
+          </div>
+        )}
 
         {/* Actions row */}
         <motion.div
