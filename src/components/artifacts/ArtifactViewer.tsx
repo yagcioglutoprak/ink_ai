@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Maximize2, Minimize2, Code2, Eye, Terminal } from 'lucide-react'
 import { springs, shadows } from '../../lib/theme'
@@ -28,6 +28,11 @@ export default function ArtifactViewer({
   const [consoleEntries, setConsoleEntries] = useState<ConsoleEntry[]>([])
 
   const canPreview = isPreviewable(artifact.type)
+
+  // Auto-switch to preview tab when artifact changes and is previewable
+  useEffect(() => {
+    if (canPreview) setActiveTab('preview')
+  }, [artifact.id, canPreview])
 
   const handleConsoleLog = useCallback((entry: ConsoleEntry) => {
     setConsoleEntries((prev) => [...prev, entry])

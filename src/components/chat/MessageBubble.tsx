@@ -1,10 +1,10 @@
-import { useState, useCallback } from 'react'
+import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Copy, Check, RefreshCw, AlertCircle, Code2 } from 'lucide-react'
+import { Copy, Check, RefreshCw, AlertCircle, Code2, Eye } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { springs, shadows } from '../../lib/theme'
-import { parseCodeBlocks, langLabel, normaliseLang } from '../../lib/artifacts'
+import { langLabel, normaliseLang, isPreviewable } from '../../lib/artifacts'
 import type { Message, GenerativeUIBlock, ThinkingBlock as ThinkingBlockType, ToolCallBlock as ToolCallBlockType } from '../../types'
 import GenerativeUIRenderer from '../generative-ui/GenerativeUIRenderer'
 import ThinkingBlock from './ThinkingBlock'
@@ -188,7 +188,7 @@ export default function MessageBubble({ message, accentColor = '#FFE500', onRege
                   remarkPlugins={[remarkGfm]}
                   components={onOpenArtifact ? {
                     pre({ children }) {
-                      return <div style={{ position: 'relative' }}>{children}</div>
+                      return <>{children}</>
                     },
                     code({ className, children }) {
                       const match = /language-(\w+)/.exec(className ?? '')
@@ -199,36 +199,17 @@ export default function MessageBubble({ message, accentColor = '#FFE500', onRege
                         return <code className={className}>{children}</code>
                       }
 
+                      const normLang = normaliseLang(lang)
+                      const label = langLabel(normLang)
+                      const preview = isPreviewable(normLang)
+                      const title = `${label} snippet`
+
                       return (
-                        <div style={{ position: 'relative' }}>
-                          <code className={className}>{children}</code>
-                          <motion.button
-                            whileHover={{ x: -1, y: -1, boxShadow: shadows.sm }}
-                            whileTap={{ x: 1, y: 1, boxShadow: 'none' }}
-                            transition={{ duration: 0.07 }}
-                            onClick={() => onOpenArtifact(lang, codeStr, `${langLabel(normaliseLang(lang))} snippet`)}
-                            style={{
-                              position: 'absolute',
-                              top: 6,
-                              right: 6,
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 4,
-                              padding: '3px 8px',
-                              background: '#FFE500',
-                              border: '1.5px solid #000',
-                              color: '#000',
-                              fontFamily: 'var(--font-mono)',
-                              fontSize: 9,
-                              letterSpacing: '0.06em',
-                              cursor: 'pointer',
-                              zIndex: 2,
-                            }}
-                          >
-                            <Code2 size={9} />
-                            OPEN
-                          </motion.button>
-                        </div>
+                        <ArtifactCard
+                          label={label}
+                          preview={preview}
+                          onOpen={() => onOpenArtifact(lang, codeStr, title)}
+                        />
                       )
                     },
                   } : undefined}
@@ -299,7 +280,90 @@ export default function MessageBubble({ message, accentColor = '#FFE500', onRege
   )
 }
 
-/* ── AI avatar — brutalist square ────────────────────── */
+/* ── Artifact card (replaces inline code block) ──────── */
+function ArtifactCard({
+  label,
+  preview,
+  onOpen,
+}: {
+  label: string
+  preview: boolean
+  onOpen: () => void
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 4 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.15 }}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 12,
+        margin: '8px 0',
+        padding: '10px 14px',
+        background: '#0A0A0A',
+        border: '2px solid #000',
+        boxShadow: '3px 3px 0 #FFE500',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <Code2 size={13} color="#FFE500" />
+        <div>
+          <div
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 11,
+              color: '#FFE500',
+              letterSpacing: '0.08em',
+              fontWeight: 500,
+            }}
+          >
+            {label.toUpperCase()}
+          </div>
+          <div
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 9,
+              color: '#666',
+              letterSpacing: '0.06em',
+              marginTop: 1,
+            }}
+          >
+            {preview ? 'LIVE PREVIEW AVAILABLE' : 'CODE ARTIFACT'}
+          </div>
+        </div>
+      </div>
+
+      <motion.button
+        whileHover={{ x: -1, y: -1, boxShadow: '3px 3px 0 #000' }}
+        whileTap={{ x: 1, y: 1, boxShadow: 'none' }}
+        transition={{ duration: 0.07 }}
+        onClick={onOpen}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 5,
+          padding: '5px 12px',
+          background: '#FFE500',
+          border: '1.5px solid #000',
+          color: '#000',
+          fontFamily: 'var(--font-mono)',
+          fontSize: 10,
+          letterSpacing: '0.08em',
+          fontWeight: 500,
+          cursor: 'pointer',
+          flexShrink: 0,
+        }}
+      >
+        {preview ? <Eye size={10} /> : <Code2 size={10} />}
+        OPEN
+      </motion.button>
+    </motion.div>
+  )
+}
+
+/* ── AI avatar — brutalist square ──────────────────���─── */
 function AIAvatar({ isAnimating }: { isAnimating: boolean }) {
   return (
     <div
