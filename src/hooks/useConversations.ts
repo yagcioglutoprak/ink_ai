@@ -306,9 +306,34 @@ const SEED_CONVERSATIONS: Conversation[] = [
   { ...makeConversation('Refactor auth module'), messages: [], updatedAt: Date.now() - 86_400_000 },
 ]
 
+const STORAGE_KEY_CONVERSATIONS = 'ink-ai-conversations'
+const STORAGE_KEY_ACTIVE_ID = 'ink-ai-active-id'
+
+function loadFromStorage<T>(key: string, fallback: T): T {
+  try {
+    const raw = localStorage.getItem(key)
+    if (raw === null) return fallback
+    return JSON.parse(raw) as T
+  } catch {
+    return fallback
+  }
+}
+
 export function useConversations() {
-  const [conversations, setConversations] = useState<Conversation[]>(SEED_CONVERSATIONS)
-  const [activeId, setActiveId] = useState<string | null>(null)
+  const [conversations, setConversations] = useState<Conversation[]>(
+    () => loadFromStorage(STORAGE_KEY_CONVERSATIONS, SEED_CONVERSATIONS)
+  )
+  const [activeId, setActiveId] = useState<string | null>(
+    () => loadFromStorage(STORAGE_KEY_ACTIVE_ID, null)
+  )
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY_CONVERSATIONS, JSON.stringify(conversations))
+  }, [conversations])
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY_ACTIVE_ID, JSON.stringify(activeId))
+  }, [activeId])
 
   const activeConversation = conversations.find((c) => c.id === activeId) ?? null
 
