@@ -79,54 +79,57 @@ export default function ArtifactPanel({
       exit={{ x: '100%', opacity: 0 }}
       transition={springs.smooth}
       style={{
-        width,
+        width: isMobile ? '100vw' : width,
         height: '100%',
         flexShrink: 0,
-        borderLeft: '3px solid #000',
-        position: 'relative',
         overflow: 'hidden',
         background: '#fff',
+        ...(isMobile
+          ? { position: 'fixed' as const, inset: 0, zIndex: 60, borderLeft: 'none' }
+          : { position: 'relative' as const, borderLeft: '3px solid #000' }),
       }}
     >
       {/* Drag handle (left edge) */}
-      <div
-        onMouseDown={handleMouseDown}
-        style={{
-          position: 'absolute',
-          left: 0,
-          top: 0,
-          bottom: 0,
-          width: 6,
-          cursor: 'col-resize',
-          zIndex: 10,
-          background: 'transparent',
-        }}
-        title="Drag to resize"
-      >
-        {/* Visual grip dots */}
+      {!isMobile && (
         <div
+          onMouseDown={handleMouseDown}
           style={{
             position: 'absolute',
-            top: '50%',
-            left: 1,
-            transform: 'translateY(-50%)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 3,
+            left: 0,
+            top: 0,
+            bottom: 0,
+            width: 6,
+            cursor: 'col-resize',
+            zIndex: 10,
+            background: 'transparent',
           }}
+          title="Drag to resize"
         >
-          {[0, 1, 2].map((i) => (
-            <div
-              key={i}
-              style={{
-                width: 3,
-                height: 3,
-                background: '#ccc',
-              }}
-            />
-          ))}
+          {/* Visual grip dots */}
+          <div
+            style={{
+              position: 'absolute',
+              top: '50%',
+              left: 1,
+              transform: 'translateY(-50%)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 3,
+            }}
+          >
+            {[0, 1, 2].map((i) => (
+              <div
+                key={i}
+                style={{
+                  width: 3,
+                  height: 3,
+                  background: '#ccc',
+                }}
+              />
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       <ArtifactViewer
         artifact={artifact}
