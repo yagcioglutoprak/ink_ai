@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { X, Maximize2, Minimize2, Code2, Eye, Terminal } from 'lucide-react'
 import { springs, shadows } from '../../lib/theme'
 import { langLabel, isPreviewable } from '../../lib/artifacts'

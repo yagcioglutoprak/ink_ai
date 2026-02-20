@@ -32,7 +32,6 @@ export default function App() {
   } = useConversations()
 
   const {
-    artifacts,
     activeArtifact,
     panelOpen,
     addArtifact,
