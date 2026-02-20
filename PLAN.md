@@ -267,6 +267,114 @@ ai-chat-app/
 
 ---
 
+## Phase 7 — UI on the Fly (Generative UI)
+
+**Goal:** When AI determines that a structured UI would answer the user better than plain text, it generates and renders a live React component inline inside the chat — styled to match the neo-brutalist design system.
+
+### Concept
+
+The AI decides autonomously. If a user asks *"show me a color palette"*, *"give me a progress tracker"*, *"build me a mini calculator"*, or *"compare these two options"* — the AI emits a special tool call (`renderUI`) with a component type and props. The frontend renders a real interactive React widget directly in the message stream, not inside the artifact panel.
+
+Think of it as: **the AI choosing the right medium for the answer.**
+
+---
+
+### How It Works
+
+```
+User message → Claude decides renderUI is helpful
+           → emits tool_call: { tool: "renderUI", type: "ColorPalette", props: {...} }
+           → frontend maps type → React component
+           → component renders inline in the chat bubble
+           → user can interact with the widget
+```
+
+The AI is given a catalogue of available UI widgets it can invoke. It selects from this catalogue based on context. It never generates raw JSX or HTML (that's the Artifact panel's job) — it only emits structured props for pre-built, trusted components.
+
+---
+
+### Widget Catalogue (Phase 7)
+
+Each widget is a standalone React component that accepts typed props and is fully styled with the neo-brutalist design system (black borders, hard shadows, flat accent fills, Bebas Neue headings, DM Mono body).
+
+| Widget type | Trigger example | Props |
+|---|---|---|
+| `ColorPalette` | "show me a red color palette" | `colors: { name, hex, role }[]` |
+| `ComparisonTable` | "compare React vs Vue" | `items: string[], criteria: { label, values }[]` |
+| `ProgressTracker` | "track my 5 steps" | `steps: { label, done }[]` |
+| `ProsConsList` | "pros and cons of TypeScript" | `pros: string[], cons: string[]` |
+| `MiniCalculator` | "I need a tip calculator" | `mode: 'tip' | 'percentage' | 'basic'` |
+| `CodeDiff` | "what changed here?" | `before: string, after: string, lang: string` |
+| `Timeline` | "show me the history of..." | `events: { date, label, detail }[]` |
+| `DataTable` | "list these 10 results" | `columns: string[], rows: string[][]` |
+| `RatingCard` | "rate these options" | `items: { label, score, note }[]` |
+| `KeyValueGrid` | "here are the specs" | `pairs: { key, value, accent? }[]` |
+
+---
+
+### Tasks
+
+#### Backend / AI side
+- [ ] Define `renderUI` as a tool in the AI SDK tool definitions (`src/lib/tools.ts`)
+  - Schema: `{ type: WidgetType, props: Record<string, unknown>, caption?: string }`
+  - Add few-shot examples in system prompt so AI knows when to use each widget
+  - Add explicit instruction: prefer `renderUI` over bullet lists when data is structured
+- [ ] System prompt section: "UI Widget Catalogue" — describes each widget, when to use it, what props to pass
+- [ ] Validate props server-side with Zod schemas before sending to frontend
+
+#### Frontend — widget registry
+- [ ] Create `src/lib/widgetRegistry.ts` — maps `WidgetType → React component`
+- [ ] Create `src/components/generative-ui/` directory with one file per widget
+- [ ] Create `src/components/generative-ui/GenerativeUIRenderer.tsx` — renders a widget from a tool call result
+
+#### Widget components (each fully styled, neo-brutalist)
+- [ ] `ColorPalette.tsx` — grid of color swatches with hex labels, copy on click
+- [ ] `ComparisonTable.tsx` — thick bordered table, accent header row, checkmark/X cells
+- [ ] `ProgressTracker.tsx` — numbered steps, filled vs empty, connect with line
+- [ ] `ProsConsList.tsx` — two-column split: green left / red right, bold counts
+- [ ] `MiniCalculator.tsx` — interactive, stateful, press-down buttons
+- [ ] `Timeline.tsx` — vertical line, date stamps, dot markers
+- [ ] `DataTable.tsx` — sortable columns, alternating row fills, thick header
+- [ ] `RatingCard.tsx` — score bars, ranked order
+- [ ] `KeyValueGrid.tsx` — 2-col grid, optional per-row accent color
+- [ ] `CodeDiff.tsx` — side-by-side or inline diff with Shiki highlighting
+
+#### Integration in chat
+- [ ] In `MessageBubble.tsx`: detect `tool_call` blocks with `toolName === 'renderUI'` and render `GenerativeUIRenderer` inline below the text response
+- [ ] Widget slides in with spring animation (Framer Motion, same `scale-pop` as bubbles)
+- [ ] Caption text rendered above the widget in small mono label
+- [ ] Widget is always full-width within the message column
+- [ ] Widget has a small "GENERATED UI" stamp badge (top-right corner) so user knows it's AI-rendered
+- [ ] Optional: user can click to "expand" widget into the artifact panel
+
+#### Design rules for all widgets
+- **Border:** `2px solid #000`, hard shadow `3px 3px 0 #000`
+- **No border-radius** — brutalist flat
+- **Accent fills** use the conversation's `accentColor` for highlight rows/headers
+- **Typography:** Bebas Neue for headings/labels, DM Mono for values/data
+- **Interactive elements** (buttons, inputs) use the press-down `translate(2,2)` interaction
+- **Entering animation:** same spring bounce as message bubbles (scale 0.88 → 1.04 → 1.0)
+- **Max-width:** fills the AI message column (72% of chat width)
+
+---
+
+### Example flows
+
+**User:** "Compare Python, JavaScript, and Rust for a backend API"
+**AI:** streams a short intro sentence, then emits `renderUI` → `ComparisonTable` with languages as columns, criteria rows (speed, ecosystem, learning curve, etc.)
+
+**User:** "Give me a warm earth-tone color palette"
+**AI:** emits `renderUI` → `ColorPalette` with 6 swatches, each with hex + role label (background, surface, accent…)
+
+**User:** "I need to track the 5 steps of my project"
+**AI:** emits `renderUI` → `ProgressTracker` with 5 labelled steps, all unchecked — user can click to toggle done state locally
+
+---
+
+*This feature makes the AI feel genuinely intelligent — choosing the right format for the answer rather than always defaulting to plain text.*
+
+---
+
 ## Milestones
 
 | Phase | Estimated Work | Deliverable |
@@ -277,6 +385,7 @@ ai-chat-app/
 | 4 — Tool Calls | Medium | Web search with animated tool cards |
 | 5 — Artifacts | Large | Split code/preview panel |
 | 6 — Polish | Medium | Production-ready, animated, complete |
+| 7 — UI on the Fly | Large | Generative UI widgets rendered inline in chat |
 
 ---
 
