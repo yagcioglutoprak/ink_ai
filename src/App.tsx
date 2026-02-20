@@ -2,7 +2,6 @@ import { useState, useCallback, useRef } from 'react'
 import { AnimatePresence } from 'framer-motion'
 import './styles/globals.css'
 import { useConversations } from './hooks/useConversations'
-import { streamChat } from './lib/api'
 import Sidebar from './components/layout/Sidebar'
 import ChatPanel from './components/layout/ChatPanel'
 import type { Message, ContentBlock } from './types'
@@ -11,10 +10,29 @@ function uid() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36)
 }
 
+/* ── Mock streaming data ────────────────────────────────── */
+const MOCK_THINKING = `The user is asking me a question. Let me reason through this carefully.
+
+I should consider multiple angles here and provide a thorough, well-structured answer. Let me think about what would be most helpful...
+
+I'll break my response into clear sections so it's easy to follow.`
+
+const MOCK_RESPONSES = [
+  `Great question! Here's what I think:\n\nThe key insight is that good software design comes from understanding the problem deeply before writing code. Start with the user's needs, then work backwards to the implementation.\n\nHere are three principles I'd recommend:\n\n1. **Keep it simple** — the best code is code you don't have to write\n2. **Make it readable** — you'll read code 10x more than you write it\n3. **Test the edges** — bugs hide where you least expect them`,
+  `I'd be happy to help with that!\n\nLet me walk you through the approach step by step:\n\n**First**, we need to understand the constraints. What are the hard requirements vs nice-to-haves?\n\n**Second**, let's look at existing patterns in the codebase. Consistency matters more than cleverness.\n\n**Third**, we prototype fast and iterate. Ship something small, learn from it, then improve.`,
+  `That's an interesting challenge. Here's how I'd approach it:\n\nThe fundamental trade-off here is between **flexibility** and **simplicity**. Too much abstraction makes things hard to understand. Too little makes things hard to change.\n\nMy recommendation: start concrete, then abstract only when you see the pattern repeated three times. This is sometimes called the "Rule of Three."\n\nWant me to show you a concrete example?`,
+  `Absolutely! Let me break this down:\n\n**The Problem:** You need a solution that scales but doesn't over-engineer things up front.\n\n**The Solution:** Use a layered architecture:\n- **Data layer** — handles persistence and queries\n- **Business logic** — pure functions, easy to test\n- **Presentation** — thin, delegates to business logic\n\nEach layer only talks to the one below it. This keeps dependencies clean and makes testing straightforward.`,
+]
+
+function delay(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms))
+}
+
 export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [isStreaming, setIsStreaming] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
+  const mockIndexRef = useRef(0)
 
   const {
     conversations,
@@ -28,77 +46,63 @@ export default function App() {
     deleteConversation,
   } = useConversations()
 
-  /* ── Stream AI response into a message ───────────────── */
+  /* ── Mock-stream AI response into a message ──────────── */
   const streamResponse = useCallback(
     async (
       convId: string,
       aiMsgId: string,
-      apiMessages: Array<{ role: string; content: string }>,
+      _apiMessages: Array<{ role: string; content: string }>,
     ) => {
       setIsStreaming(true)
       abortRef.current = new AbortController()
-      updateMessage(convId, aiMsgId, { status: 'streaming' })
+      const signal = abortRef.current.signal
 
-      let thinkingContent = ''
-      let textContent = ''
-      let blocks: ContentBlock[] = []
+      const responseText = MOCK_RESPONSES[mockIndexRef.current % MOCK_RESPONSES.length]
+      mockIndexRef.current++
+
+      const blocks: ContentBlock[] = []
 
       try {
-        for await (const event of streamChat(
-          { messages: apiMessages },
-          abortRef.current.signal,
-        )) {
-          switch (event.type) {
-            case 'thinking_start':
-              thinkingContent = ''
-              blocks = [...blocks, { type: 'thinking', content: '' }]
-              updateMessage(convId, aiMsgId, { blocks: [...blocks] })
-              break
+        // Phase 1: Thinking (simulated)
+        updateMessage(convId, aiMsgId, { status: 'streaming' })
+        blocks.push({ type: 'thinking', content: '' })
+        updateMessage(convId, aiMsgId, { blocks: [...blocks] })
 
-            case 'thinking_delta':
-              thinkingContent += event.content ?? ''
-              blocks = blocks.map((b, i) =>
-                i === blocks.length - 1 && b.type === 'thinking'
-                  ? { ...b, content: thinkingContent }
-                  : b,
-              )
-              updateMessage(convId, aiMsgId, { blocks: [...blocks] })
-              break
-
-            case 'thinking_end':
-              blocks = blocks.map((b, i) =>
-                i === blocks.length - 1 && b.type === 'thinking'
-                  ? { ...b, durationMs: event.durationMs }
-                  : b,
-              )
-              updateMessage(convId, aiMsgId, { blocks: [...blocks] })
-              break
-
-            case 'text_delta':
-              textContent += event.content ?? ''
-              updateMessage(convId, aiMsgId, { content: textContent })
-              break
-
-            case 'done':
-              updateMessage(convId, aiMsgId, { status: 'done', blocks: [...blocks] })
-              break
-
-            case 'error':
-              updateMessage(convId, aiMsgId, {
-                status: 'error',
-                content: event.error ?? 'An unexpected error occurred.',
-              })
-              break
-          }
+        let thinkingContent = ''
+        for (let i = 0; i < MOCK_THINKING.length; i += 4) {
+          if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
+          thinkingContent = MOCK_THINKING.slice(0, i + 4)
+          blocks[0] = { type: 'thinking', content: thinkingContent }
+          updateMessage(convId, aiMsgId, { blocks: [...blocks] })
+          await delay(12)
         }
+
+        // Thinking complete
+        blocks[0] = { type: 'thinking', content: MOCK_THINKING, durationMs: 1840 }
+        updateMessage(convId, aiMsgId, { blocks: [...blocks] })
+        await delay(200)
+
+        // Phase 2: Text streaming
+        let textContent = ''
+        for (let i = 0; i < responseText.length; i += 3) {
+          if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
+          textContent = responseText.slice(0, i + 3)
+          updateMessage(convId, aiMsgId, { content: textContent })
+          await delay(16)
+        }
+
+        updateMessage(convId, aiMsgId, {
+          content: responseText,
+          status: 'done',
+          blocks: [...blocks],
+        })
       } catch (err: unknown) {
-        if (err instanceof Error && err.name === 'AbortError') {
-          // User stopped — mark as done with whatever content we have
+        if (err instanceof DOMException && err.name === 'AbortError') {
           updateMessage(convId, aiMsgId, { status: 'done' })
         } else {
           updateMessage(convId, aiMsgId, {
             status: 'error',
-            content: err instanceof Error ? err.message : 'Connection failed.',
+            content: err instanceof Error ? err.message : 'Something went wrong.',
           })
         }
       } finally {
@@ -127,7 +131,6 @@ export default function App() {
         { role: 'user', content: text },
       ]
 
-      // Add user message
       const userMsg: Message = {
         id: uid(),
         role: 'user',
@@ -137,7 +140,6 @@ export default function App() {
       }
       addMessage(convId, userMsg)
 
-      // Add AI pending message
       const aiMsgId = uid()
       const aiMsg: Message = {
         id: aiMsgId,
@@ -163,15 +165,12 @@ export default function App() {
       const msgIndex = activeConversation.messages.findIndex((m) => m.id === messageId)
       if (msgIndex < 0) return
 
-      // Build API messages from messages before this one
       const apiMessages = activeConversation.messages
         .slice(0, msgIndex)
         .filter((m) => m.status === 'done')
         .map((m) => ({ role: m.role, content: m.content }))
 
-      // Reset the AI message (clears content/blocks, removes messages after it)
       resetMessage(convId, messageId)
-
       await streamResponse(convId, messageId, apiMessages)
     },
     [activeConversation, isStreaming, resetMessage, streamResponse],
