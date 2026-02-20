@@ -351,9 +351,10 @@ export function useConversations() {
 
     async function loadFromDb() {
       const summaries = await apiFetchConversations()
-      if (!summaries || summaries.length === 0) return
+      if (!summaries) return
 
       setDbAvailable(true)
+      if (summaries.length === 0) return
 
       // Fetch full conversations with messages
       const full = await Promise.all(
