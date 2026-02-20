@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import type { Conversation, Message, GenerativeUIBlock } from '../types'
+import type { Conversation, Message, GenerativeUIBlock, ToolCallBlock } from '../types'
 import { getConversationAccent } from '../lib/theme'
 
 function uid() {
@@ -162,7 +162,85 @@ demoConv.messages = DEMO_MESSAGES
 demoConv.updatedAt = Date.now() - 50_000
 demoConv.title = 'UI on the Fly — Demo'
 
+/* ── Tool call demo ─────────────────────────────────────── */
+const toolDemoConv = makeConversation('Web Search — Demo')
+
+const TOOL_DEMO_MESSAGES: Message[] = [
+  {
+    id: uid(),
+    role: 'user',
+    content: 'What are the latest developments in quantum computing?',
+    status: 'done',
+    createdAt: Date.now() - 45_000,
+  },
+  {
+    id: uid(),
+    role: 'assistant',
+    content:
+      'Based on my web search, here are the latest developments in quantum computing:\n\n' +
+      '**IBM** recently announced their 1,121-qubit Condor processor, making it the largest quantum processor to date. ' +
+      'Meanwhile, **Google** has demonstrated quantum error correction at scale with their new Willow chip.\n\n' +
+      '**Microsoft** is investing heavily in topological qubits, which promise more stable quantum states. ' +
+      'And **IonQ** has achieved record-breaking gate fidelities with their trapped-ion approach.\n\n' +
+      'The field is progressing rapidly toward practical quantum advantage in areas like drug discovery, ' +
+      'cryptography, and materials science.',
+    status: 'done',
+    createdAt: Date.now() - 43_000,
+    blocks: [
+      {
+        type: 'tool_call',
+        id: 'toolu_demo_1',
+        toolName: 'web_search',
+        args: { query: 'latest quantum computing developments 2025' },
+        status: 'success',
+        durationMs: 1340,
+        result: {
+          query: 'latest quantum computing developments 2025',
+          count: 5,
+          results: [
+            {
+              title: 'IBM Unveils 1,121-Qubit Condor Quantum Processor',
+              url: 'https://research.ibm.com/blog/quantum-condor',
+              snippet:
+                'IBM has announced Condor, its largest quantum processor to date with 1,121 qubits, marking a significant milestone in quantum computing hardware.',
+            },
+            {
+              title: "Google's Willow Chip Achieves Quantum Error Correction Breakthrough",
+              url: 'https://blog.google/technology/research/quantum-willow-chip/',
+              snippet:
+                "Google's new Willow quantum chip demonstrates below-threshold quantum error correction, a key milestone toward practical quantum computing.",
+            },
+            {
+              title: 'Microsoft Advances Topological Qubit Research',
+              url: 'https://azure.microsoft.com/en-us/blog/quantum-topological/',
+              snippet:
+                "Microsoft's approach to topological qubits shows promise for more stable quantum states, potentially reducing error rates by orders of magnitude.",
+            },
+            {
+              title: 'IonQ Achieves Record Gate Fidelities',
+              url: 'https://ionq.com/news/gate-fidelity-record',
+              snippet:
+                'IonQ has set new records for quantum gate fidelities using trapped-ion technology, achieving 99.9% two-qubit gate fidelity.',
+            },
+            {
+              title: 'Quantum Computing Market to Reach $65B by 2030',
+              url: 'https://www.mckinsey.com/quantum-computing-market',
+              snippet:
+                'McKinsey projects the quantum computing market will grow to $65 billion by 2030, driven by advances in hardware and increasing enterprise adoption.',
+            },
+          ],
+        },
+      } satisfies ToolCallBlock,
+    ],
+  },
+]
+
+toolDemoConv.messages = TOOL_DEMO_MESSAGES
+toolDemoConv.updatedAt = Date.now() - 40_000
+toolDemoConv.title = 'Web Search — Demo'
+
 const SEED_CONVERSATIONS: Conversation[] = [
+  toolDemoConv,
   demoConv,
   { ...makeConversation('Build a landing page'), messages: [], updatedAt: Date.now() - 60_000 },
   { ...makeConversation('Explain quantum computing'), messages: [], updatedAt: Date.now() - 3_600_000 },
