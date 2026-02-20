@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "server": "cd server && python app.py",
+    "start": "./dev.sh",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"
