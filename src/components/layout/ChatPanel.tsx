@@ -11,6 +11,7 @@ interface ChatPanelProps {
   sidebarOpen: boolean
   onSend: (text: string) => void
   onStop: () => void
+  onRegenerate: (messageId: string) => void
   isStreaming: boolean
 }
 
@@ -19,6 +20,7 @@ export default function ChatPanel({
   sidebarOpen,
   onSend,
   onStop,
+  onRegenerate,
   isStreaming,
 }: ChatPanelProps) {
   const handleSuggestion = useCallback((text: string) => onSend(text), [onSend])
@@ -48,6 +50,7 @@ export default function ChatPanel({
         <MessageList
           messages={conversation.messages}
           accentColor={conversation.accentColor}
+          onRegenerate={onRegenerate}
         />
       )}
 

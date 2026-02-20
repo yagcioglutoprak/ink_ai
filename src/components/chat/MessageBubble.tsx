@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Copy, Check, RefreshCw } from 'lucide-react'
+import { Copy, Check, RefreshCw, AlertCircle } from 'lucide-react'
 import { springs, shadows } from '../../lib/theme'
-import type { Message, GenerativeUIBlock } from '../../types'
+import type { Message, GenerativeUIBlock, ThinkingBlock as ThinkingBlockType } from '../../types'
 import GenerativeUIRenderer from '../generative-ui/GenerativeUIRenderer'
+import ThinkingBlock from './ThinkingBlock'
 
 interface MessageBubbleProps {
   message: Message
@@ -22,8 +23,12 @@ export default function MessageBubble({ message, accentColor = '#FFE500', onRege
   const isUser = message.role === 'user'
   const isStreaming = message.status === 'streaming'
   const isPending = message.status === 'pending'
+  const isError = message.status === 'error'
 
-  // Extract generative UI blocks from message.blocks
+  // Extract blocks by type
+  const thinkingBlocks = (message.blocks ?? []).filter(
+    (b): b is ThinkingBlockType => b.type === 'thinking'
+  )
   const uiBlocks = (message.blocks ?? []).filter(
     (b): b is GenerativeUIBlock => b.type === 'generative_ui'
   )
@@ -77,16 +82,37 @@ export default function MessageBubble({ message, accentColor = '#FFE500', onRege
           {isUser ? 'YOU' : 'INK.AI'}
         </div>
 
+        {/* Thinking blocks (AI only, rendered before the bubble) */}
+        {!isUser && thinkingBlocks.length > 0 && (
+          <div style={{ width: '100%' }}>
+            {thinkingBlocks.map((block, i) => (
+              <ThinkingBlock
+                key={i}
+                block={block}
+                isStreaming={isStreaming && !block.durationMs}
+              />
+            ))}
+          </div>
+        )}
+
         {/* Bubble */}
         <motion.div
           whileHover={{ x: isUser ? 2 : -2, y: -2 }}
           transition={{ duration: 0.08 }}
           style={{
             padding: '14px 18px',
-            background: isUser ? '#000' : '#FFFFFF',
-            border: '2px solid #000',
-            boxShadow: isUser ? shadows.md : shadows.sm,
-            color: isUser ? '#FFE500' : '#0A0A0A',
+            background: isError
+              ? '#FFF0F0'
+              : isUser
+                ? '#000'
+                : '#FFFFFF',
+            border: isError ? '2px solid #FF3B3B' : '2px solid #000',
+            boxShadow: isError ? '3px 3px 0px #FF3B3B' : isUser ? shadows.md : shadows.sm,
+            color: isError
+              ? '#CC0000'
+              : isUser
+                ? '#FFE500'
+                : '#0A0A0A',
             fontFamily: 'var(--font-mono)',
             fontSize: 14,
             lineHeight: 1.7,
@@ -96,7 +122,7 @@ export default function MessageBubble({ message, accentColor = '#FFE500', onRege
           }}
         >
           {/* Accent top bar for user messages */}
-          {isUser && (
+          {isUser && !isError && (
             <div
               style={{
                 position: 'absolute',
@@ -110,8 +136,33 @@ export default function MessageBubble({ message, accentColor = '#FFE500', onRege
             />
           )}
 
+          {/* Pending state */}
           {isPending && <PendingDots />}
-          {!isPending && message.content}
+
+          {/* Error state */}
+          {isError && (
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+              <AlertCircle size={14} style={{ flexShrink: 0, marginTop: 3 }} />
+              <div>
+                <div
+                  style={{
+                    fontFamily: 'var(--font-display)',
+                    fontSize: 14,
+                    letterSpacing: '0.06em',
+                    marginBottom: 4,
+                  }}
+                >
+                  ERROR
+                </div>
+                <div style={{ fontSize: 12, lineHeight: 1.6 }}>
+                  {message.content || 'Something went wrong.'}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Normal content */}
+          {!isPending && !isError && message.content}
 
           {/* Streaming cursor */}
           {isStreaming && message.content && (
@@ -153,12 +204,18 @@ export default function MessageBubble({ message, accentColor = '#FFE500', onRege
             {formatTime(message.createdAt)}
           </span>
 
-          <ActionBtn onClick={handleCopy} title="Copy" accent={copied ? '#00CC44' : undefined}>
-            {copied ? <Check size={10} /> : <Copy size={10} />}
-          </ActionBtn>
+          {!isError && (
+            <ActionBtn onClick={handleCopy} title="Copy" accent={copied ? '#00CC44' : undefined}>
+              {copied ? <Check size={10} /> : <Copy size={10} />}
+            </ActionBtn>
+          )}
 
           {!isUser && onRegenerate && (
-            <ActionBtn onClick={onRegenerate} title="Regenerate">
+            <ActionBtn
+              onClick={onRegenerate}
+              title={isError ? 'Retry' : 'Regenerate'}
+              accent={isError ? '#FF3B3B' : undefined}
+            >
               <RefreshCw size={10} />
             </ActionBtn>
           )}
@@ -236,7 +293,7 @@ function ActionBtn({
       style={{
         background: accent ?? 'transparent',
         border: '1.5px solid #000',
-        color: '#000',
+        color: accent ? '#fff' : '#000',
         cursor: 'pointer',
         padding: '2px 5px',
         display: 'flex',

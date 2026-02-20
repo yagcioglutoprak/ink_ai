@@ -223,6 +223,20 @@ export function useConversations() {
     setActiveId((prev) => (prev === id ? null : prev))
   }, [])
 
+  /** Reset an AI message and remove all messages after it (for regeneration). */
+  const resetMessage = useCallback((conversationId: string, messageId: string) => {
+    setConversations((prev) =>
+      prev.map((c) => {
+        if (c.id !== conversationId) return c
+        const idx = c.messages.findIndex((m) => m.id === messageId)
+        if (idx < 0) return c
+        const messages = c.messages.slice(0, idx + 1)
+        messages[idx] = { ...messages[idx], content: '', blocks: [], status: 'pending' }
+        return { ...c, messages }
+      })
+    )
+  }, [])
+
   return {
     conversations,
     activeId,
@@ -231,6 +245,7 @@ export function useConversations() {
     selectConversation,
     addMessage,
     updateMessage,
+    resetMessage,
     deleteConversation,
   }
 }

@@ -1,10 +1,11 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { AnimatePresence } from 'framer-motion'
 import './styles/globals.css'
 import { useConversations } from './hooks/useConversations'
+import { streamChat } from './lib/api'
 import Sidebar from './components/layout/Sidebar'
 import ChatPanel from './components/layout/ChatPanel'
-import type { Message } from './types'
+import type { Message, ContentBlock } from './types'
 
 function uid() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36)
@@ -13,6 +14,7 @@ function uid() {
 export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [isStreaming, setIsStreaming] = useState(false)
+  const abortRef = useRef<AbortController | null>(null)
 
   const {
     conversations,
@@ -22,18 +24,108 @@ export default function App() {
     selectConversation,
     addMessage,
     updateMessage,
+    resetMessage,
     deleteConversation,
   } = useConversations()
+
+  /* ── Stream AI response into a message ───────────────── */
+  const streamResponse = useCallback(
+    async (
+      convId: string,
+      aiMsgId: string,
+      apiMessages: Array<{ role: string; content: string }>,
+    ) => {
+      setIsStreaming(true)
+      abortRef.current = new AbortController()
+      updateMessage(convId, aiMsgId, { status: 'streaming' })
+
+      let thinkingContent = ''
+      let textContent = ''
+      let blocks: ContentBlock[] = []
+
+      try {
+        for await (const event of streamChat(
+          { messages: apiMessages },
+          abortRef.current.signal,
+        )) {
+          switch (event.type) {
+            case 'thinking_start':
+              thinkingContent = ''
+              blocks = [...blocks, { type: 'thinking', content: '' }]
+              updateMessage(convId, aiMsgId, { blocks: [...blocks] })
+              break
+
+            case 'thinking_delta':
+              thinkingContent += event.content ?? ''
+              blocks = blocks.map((b, i) =>
+                i === blocks.length - 1 && b.type === 'thinking'
+                  ? { ...b, content: thinkingContent }
+                  : b,
+              )
+              updateMessage(convId, aiMsgId, { blocks: [...blocks] })
+              break
+
+            case 'thinking_end':
+              blocks = blocks.map((b, i) =>
+                i === blocks.length - 1 && b.type === 'thinking'
+                  ? { ...b, durationMs: event.durationMs }
+                  : b,
+              )
+              updateMessage(convId, aiMsgId, { blocks: [...blocks] })
+              break
+
+            case 'text_delta':
+              textContent += event.content ?? ''
+              updateMessage(convId, aiMsgId, { content: textContent })
+              break
+
+            case 'done':
+              updateMessage(convId, aiMsgId, { status: 'done', blocks: [...blocks] })
+              break
+
+            case 'error':
+              updateMessage(convId, aiMsgId, {
+                status: 'error',
+                content: event.error ?? 'An unexpected error occurred.',
+              })
+              break
+          }
+        }
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'AbortError') {
+          // User stopped — mark as done with whatever content we have
+          updateMessage(convId, aiMsgId, { status: 'done' })
+        } else {
+          updateMessage(convId, aiMsgId, {
+            status: 'error',
+            content: err instanceof Error ? err.message : 'Connection failed.',
+          })
+        }
+      } finally {
+        setIsStreaming(false)
+        abortRef.current = null
+      }
+    },
+    [updateMessage],
+  )
 
   /* ── Send a message ───────────────────────────────── */
   const handleSend = useCallback(
     async (text: string) => {
-      // Ensure there's an active conversation
       let convId = activeId
       if (!convId) {
         const conv = createConversation()
         convId = conv.id
       }
+
+      // Build API messages from current conversation
+      const currentConv = conversations.find((c) => c.id === convId)
+      const apiMessages = [
+        ...(currentConv?.messages
+          .filter((m) => m.status === 'done')
+          .map((m) => ({ role: m.role, content: m.content })) ?? []),
+        { role: 'user', content: text },
+      ]
 
       // Add user message
       const userMsg: Message = {
@@ -51,39 +143,44 @@ export default function App() {
         id: aiMsgId,
         role: 'assistant',
         content: '',
+        blocks: [],
         status: 'pending',
         createdAt: Date.now(),
       }
       addMessage(convId, aiMsg)
-      setIsStreaming(true)
 
-      // Simulate streaming response (Phase 3 will replace with real API)
-      const DEMO = `I received your message: "${text}"\n\nThis is a demo response — real AI streaming will be wired up in Phase 3. The UI shell is fully functional: sidebar, message bubbles, scroll behavior, the input bar, and the empty state are all live.\n\nYou can send multiple messages and switch between conversations using the sidebar.`
-
-      let i = 0
-      updateMessage(convId, aiMsgId, { status: 'streaming' })
-
-      const interval = setInterval(() => {
-        i += 3
-        updateMessage(convId!, aiMsgId, {
-          content: DEMO.slice(0, i),
-          status: i >= DEMO.length ? 'done' : 'streaming',
-        })
-        if (i >= DEMO.length) {
-          clearInterval(interval)
-          setIsStreaming(false)
-        }
-      }, 18)
+      await streamResponse(convId, aiMsgId, apiMessages)
     },
-    [activeId, createConversation, addMessage, updateMessage]
+    [activeId, conversations, createConversation, addMessage, streamResponse],
   )
 
-  const handleStop = useCallback(() => {
-    setIsStreaming(false)
-  }, [])
+  /* ── Regenerate an AI message ──────────────────────── */
+  const handleRegenerate = useCallback(
+    async (messageId: string) => {
+      if (!activeConversation || isStreaming) return
+      const convId = activeConversation.id
 
-  /* ── Cmd+K new chat shortcut ──────────────────────── */
-  // (handled in ChatPanel / InputBar for now)
+      const msgIndex = activeConversation.messages.findIndex((m) => m.id === messageId)
+      if (msgIndex < 0) return
+
+      // Build API messages from messages before this one
+      const apiMessages = activeConversation.messages
+        .slice(0, msgIndex)
+        .filter((m) => m.status === 'done')
+        .map((m) => ({ role: m.role, content: m.content }))
+
+      // Reset the AI message (clears content/blocks, removes messages after it)
+      resetMessage(convId, messageId)
+
+      await streamResponse(convId, messageId, apiMessages)
+    },
+    [activeConversation, isStreaming, resetMessage, streamResponse],
+  )
+
+  /* ── Stop generation ──────────────────────────────── */
+  const handleStop = useCallback(() => {
+    abortRef.current?.abort()
+  }, [])
 
   return (
     <div
@@ -116,6 +213,7 @@ export default function App() {
         sidebarOpen={sidebarOpen}
         onSend={handleSend}
         onStop={handleStop}
+        onRegenerate={handleRegenerate}
         isStreaming={isStreaming}
       />
 
